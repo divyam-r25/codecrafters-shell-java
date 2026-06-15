@@ -1,33 +1,23 @@
 import java.util.Scanner;
 import java.io.File;
 public class Main {
+
     public static void main(String[] args) throws Exception {
-        //TODO: Uncomment the code below to pass the first stage
-
         Scanner sc = new Scanner(System.in);
-
 
         while (true) {
             System.out.print("$ ");
-            System.out.flush();
 
             String user = sc.nextLine();
 
-            if (user.equals("exit")) {
+            if (user.equals("exit 0")) {
                 break;
             }
+
             else if (user.startsWith("echo ")) {
                 System.out.println(user.substring(5));
             }
-            else if (user.startsWith("type ")) {
-                String cmd = user.substring(5);
 
-                if (cmd.equals("echo") || cmd.equals("exit") || cmd.equals("type")) {
-                    System.out.println(cmd + " is a shell builtin");
-                } else {
-                    System.out.println(cmd + ": not found");
-                }
-            }
             else if (user.startsWith("type ")) {
                 String cmd = user.substring(5);
 
@@ -39,16 +29,21 @@ public class Main {
 
                     if (executablePath != null) {
                         System.out.println(cmd + " is " + executablePath);
-                    } else {
+                    } 
+                    else {
                         System.out.println(cmd + ": not found");
                     }
                 }
             }
+
             else {
                 System.out.println(user + ": command not found");
             }
         }
+
+        sc.close();
     }
+
     public static String findExecutable(String cmd) {
         String path = System.getenv("PATH");
         String[] directories = path.split(":");
@@ -62,5 +57,4 @@ public class Main {
         }
         return null;
     }
-    
 }
