@@ -6,8 +6,10 @@ public class Main {
 
         Scanner sc = new Scanner(System.in);
 
+
         while (true) {
             System.out.print("$ ");
+            System.out.flush();
 
             String user = sc.nextLine();
 
@@ -15,8 +17,16 @@ public class Main {
                 break;
             }
             else if (user.startsWith("echo ")) {
-                String output = user.substring(5);
-                System.out.println(output);
+                System.out.println(user.substring(5));
+            }
+            else if (user.startsWith("type ")) {
+                String cmd = user.substring(5);
+
+                if (cmd.equals("echo") || cmd.equals("exit") || cmd.equals("type")) {
+                    System.out.println(cmd + " is a shell builtin");
+                } else {
+                    System.out.println(cmd + ": not found");
+                }
             }
             else {
                 System.out.println(user + ": command not found");
