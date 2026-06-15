@@ -11,7 +11,7 @@ public class Main {
 
             String user = sc.nextLine();
 
-            if (user.equals("exit 0")) {
+            if (user.equals("exit")) {
                 break;
             }
             else if (user.startsWith("echo ")) {
