@@ -10,10 +10,11 @@ public class Main {
             System.out.print("$ ");
 
             String user = sc.nextLine();
+            
+            if(user.equals("exit")) break;
 
             System.out.println(user+": command not found");
 
-            if(user.equals("exit")) break;
             }
     }
     
