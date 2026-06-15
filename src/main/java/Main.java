@@ -43,14 +43,13 @@ public class Main {
                 String executablePath = findExecutable(command);
 
                 if (executablePath != null) {
-                    parts[0] = executablePath;
-
                     ProcessBuilder pb = new ProcessBuilder(parts);
                     pb.inheritIO();
 
                     Process process = pb.start();
                     process.waitFor();
-                } else {
+                }
+                else {
                     System.out.println(command + ": command not found");
                 }
             }
