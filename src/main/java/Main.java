@@ -25,12 +25,14 @@ public class Main {
 
             else if (command.equals("echo")) {
                 int redirectIndex = tokens.indexOf(">");
+                if (redirectIndex == -1) redirectIndex = tokens.indexOf("1>");
+
                 String output;
 
                 if (redirectIndex != -1) {
                     output = String.join(" ", tokens.subList(1, redirectIndex));
                     String fileName = tokens.get(redirectIndex + 1);
-                    File outFile = new File(fileName); // FIXED
+                    File outFile = new File(fileName);
 
                     File parent = outFile.getParentFile();
                     if (parent != null) parent.mkdirs();
@@ -92,11 +94,13 @@ public class Main {
 
             else {
                 int redirectIndex = tokens.indexOf(">");
+                if (redirectIndex == -1) redirectIndex = tokens.indexOf("1>");
+
                 File redirectFile = null;
                 List<String> cmdTokens = new ArrayList<>(tokens);
 
                 if (redirectIndex != -1) {
-                    redirectFile = new File(tokens.get(redirectIndex + 1)); // FIXED
+                    redirectFile = new File(tokens.get(redirectIndex + 1));
                     File parent = redirectFile.getParentFile();
                     if (parent != null) parent.mkdirs();
                     cmdTokens = new ArrayList<>(tokens.subList(0, redirectIndex));
