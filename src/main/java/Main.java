@@ -38,7 +38,6 @@ public class Main {
                 if (stdoutIndex != -1) {
                     String fileName = tokens.get(stdoutIndex + 1);
                     File outFile = new File(fileName);
-
                     File parent = outFile.getParentFile();
                     if (parent != null) parent.mkdirs();
 
@@ -46,8 +45,16 @@ public class Main {
                         writer.write(output + System.lineSeparator());
                     }
                 } else {
-                    // 2> should NOT affect echo stdout
                     System.out.println(output);
+                }
+
+                // FIX: 2> should create file even if echo writes nothing to stderr
+                if (stderrIndex != -1) {
+                    String errFile = tokens.get(stderrIndex + 1);
+                    File file = new File(errFile);
+                    File parent = file.getParentFile();
+                    if (parent != null) parent.mkdirs();
+                    if (!file.exists()) file.createNewFile();
                 }
             }
 
