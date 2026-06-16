@@ -25,30 +25,34 @@ public class Main {
 
             else if (command.equals("echo")) {
                 int stdoutIndex = findStdoutRedirect(tokens);
+                int appendStdoutIndex = findAppendStdoutRedirect(tokens);
                 int stderrIndex = findStderrRedirect(tokens);
 
                 int cutIndex = tokens.size();
                 if (stdoutIndex != -1) cutIndex = Math.min(cutIndex, stdoutIndex);
+                if (appendStdoutIndex != -1) cutIndex = Math.min(cutIndex, appendStdoutIndex);
                 if (stderrIndex != -1) cutIndex = Math.min(cutIndex, stderrIndex);
 
                 String output = cutIndex > 1
                         ? String.join(" ", tokens.subList(1, cutIndex))
                         : "";
 
-                if (stdoutIndex != -1) {
-                    String fileName = tokens.get(stdoutIndex + 1);
+                if (stdoutIndex != -1 || appendStdoutIndex != -1) {
+                    int idx = stdoutIndex != -1 ? stdoutIndex : appendStdoutIndex;
+                    boolean append = appendStdoutIndex != -1;
+
+                    String fileName = tokens.get(idx + 1);
                     File outFile = new File(fileName);
                     File parent = outFile.getParentFile();
                     if (parent != null) parent.mkdirs();
 
-                    try (FileWriter writer = new FileWriter(outFile)) {
+                    try (FileWriter writer = new FileWriter(outFile, append)) {
                         writer.write(output + System.lineSeparator());
                     }
                 } else {
                     System.out.println(output);
                 }
 
-                // FIX: 2> should create file even if echo writes nothing to stderr
                 if (stderrIndex != -1) {
                     String errFile = tokens.get(stderrIndex + 1);
                     File file = new File(errFile);
@@ -66,13 +70,9 @@ public class Main {
                 String path = tokens.size() > 1 ? tokens.get(1) : "";
                 File dir;
 
-                if (path.equals("~")) {
-                    dir = new File(System.getenv("HOME"));
-                } else if (path.startsWith("/")) {
-                    dir = new File(path);
-                } else {
-                    dir = new File(currentDirectory, path);
-                }
+                if (path.equals("~")) dir = new File(System.getenv("HOME"));
+                else if (path.startsWith("/")) dir = new File(path);
+                else dir = new File(currentDirectory, path);
 
                 if (dir.exists() && dir.isDirectory()) {
                     currentDirectory = dir.getCanonicalPath();
@@ -84,39 +84,37 @@ public class Main {
             else if (command.equals("type")) {
                 String cmd = tokens.size() > 1 ? tokens.get(1) : "";
 
-                if (cmd.equals("echo") ||
-                    cmd.equals("exit") ||
-                    cmd.equals("type") ||
-                    cmd.equals("pwd") ||
-                    cmd.equals("cd")) {
-
+                if (cmd.equals("echo") || cmd.equals("exit") || cmd.equals("type")
+                        || cmd.equals("pwd") || cmd.equals("cd")) {
                     System.out.println(cmd + " is a shell builtin");
                 } else {
                     String executablePath = findExecutable(cmd);
-
-                    if (executablePath != null) {
-                        System.out.println(cmd + " is " + executablePath);
-                    } else {
-                        System.out.println(cmd + ": not found");
-                    }
+                    if (executablePath != null) System.out.println(cmd + " is " + executablePath);
+                    else System.out.println(cmd + ": not found");
                 }
             }
 
             else {
                 int stdoutIndex = findStdoutRedirect(tokens);
+                int appendStdoutIndex = findAppendStdoutRedirect(tokens);
                 int stderrIndex = findStderrRedirect(tokens);
 
                 File stdoutFile = null;
                 File stderrFile = null;
+                boolean appendMode = false;
 
                 int cutIndex = tokens.size();
                 if (stdoutIndex != -1) cutIndex = Math.min(cutIndex, stdoutIndex);
+                if (appendStdoutIndex != -1) cutIndex = Math.min(cutIndex, appendStdoutIndex);
                 if (stderrIndex != -1) cutIndex = Math.min(cutIndex, stderrIndex);
 
                 List<String> cmdTokens = new ArrayList<>(tokens.subList(0, cutIndex));
 
-                if (stdoutIndex != -1) {
-                    stdoutFile = new File(tokens.get(stdoutIndex + 1));
+                if (stdoutIndex != -1 || appendStdoutIndex != -1) {
+                    int idx = stdoutIndex != -1 ? stdoutIndex : appendStdoutIndex;
+                    appendMode = appendStdoutIndex != -1;
+
+                    stdoutFile = new File(tokens.get(idx + 1));
                     File parent = stdoutFile.getParentFile();
                     if (parent != null) parent.mkdirs();
                 }
@@ -141,16 +139,14 @@ public class Main {
 
                 if (executablePath != null) {
                     List<String> processArgs = new ArrayList<>(cmdTokens);
-
-                    if (directExecutable) {
-                        processArgs.set(0, executablePath);
-                    }
+                    if (directExecutable) processArgs.set(0, executablePath);
 
                     ProcessBuilder pb = new ProcessBuilder(processArgs);
                     pb.directory(new File(currentDirectory));
 
                     if (stdoutFile != null) {
-                        pb.redirectOutput(stdoutFile);
+                        if (appendMode) pb.redirectOutput(ProcessBuilder.Redirect.appendTo(stdoutFile));
+                        else pb.redirectOutput(stdoutFile);
                     } else {
                         pb.redirectOutput(ProcessBuilder.Redirect.INHERIT);
                     }
@@ -178,6 +174,12 @@ public class Main {
         return i;
     }
 
+    public static int findAppendStdoutRedirect(List<String> tokens) {
+        int i = tokens.indexOf(">>");
+        if (i == -1) i = tokens.indexOf("1>>");
+        return i;
+    }
+
     public static int findStderrRedirect(List<String> tokens) {
         return tokens.indexOf("2>");
     }
@@ -197,28 +199,21 @@ public class Main {
                     current.append(input.charAt(i + 1));
                     i++;
                 }
-            }
-            else if (c == '\'' && !inDoubleQuote) {
+            } else if (c == '\'' && !inDoubleQuote) {
                 inSingleQuote = !inSingleQuote;
-            }
-            else if (c == '"' && !inSingleQuote) {
+            } else if (c == '"' && !inSingleQuote) {
                 inDoubleQuote = !inDoubleQuote;
-            }
-            else if (c == ' ' && !inSingleQuote && !inDoubleQuote) {
+            } else if (c == ' ' && !inSingleQuote && !inDoubleQuote) {
                 if (current.length() > 0) {
                     tokens.add(current.toString());
                     current.setLength(0);
                 }
-            }
-            else {
+            } else {
                 current.append(c);
             }
         }
 
-        if (current.length() > 0) {
-            tokens.add(current.toString());
-        }
-
+        if (current.length() > 0) tokens.add(current.toString());
         return tokens;
     }
 
@@ -233,7 +228,6 @@ public class Main {
 
         for (String dir : directories) {
             File file = new File(dir, cmd);
-
             if (file.exists() && file.canExecute()) {
                 return file.getAbsolutePath();
             }
