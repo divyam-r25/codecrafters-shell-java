@@ -19,7 +19,13 @@ public class Main {
             }
 
             else if (user.startsWith("echo ")) {
-                System.out.println(user.substring(5));
+                String output = user.substring(5);
+
+                if (output.startsWith("'") && output.endsWith("'")) {
+                    output = output.substring(1, output.length() - 1);
+                }
+
+                System.out.println(output);
             }
 
             else if (user.equals("pwd")) {
