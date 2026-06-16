@@ -12,22 +12,18 @@ public class Main {
 
             String user = sc.nextLine();
 
-            // exit builtin
-            if (user.equals("exit 0")) {
+            if (user.equals("exit")) {
                 break;
             }
 
-            // echo builtin
             else if (user.startsWith("echo ")) {
                 System.out.println(user.substring(5));
             }
 
-            // pwd builtin
             else if (user.equals("pwd")) {
                 System.out.println(System.getProperty("user.dir"));
             }
 
-            // type builtin
             else if (user.startsWith("type ")) {
                 String cmd = user.substring(5);
 
@@ -37,20 +33,19 @@ public class Main {
                     cmd.equals("pwd")) {
 
                     System.out.println(cmd + " is a shell builtin");
-                } 
+                }
                 else {
                     String executablePath = findExecutable(cmd);
 
                     if (executablePath != null) {
                         System.out.println(cmd + " is " + executablePath);
-                    } 
+                    }
                     else {
                         System.out.println(cmd + ": not found");
                     }
                 }
             }
 
-            // external commands
             else {
                 String[] parts = user.trim().split("\\s+");
                 String command = parts[0];
@@ -63,7 +58,7 @@ public class Main {
 
                     Process process = pb.start();
                     process.waitFor();
-                } 
+                }
                 else {
                     System.out.println(command + ": command not found");
                 }
