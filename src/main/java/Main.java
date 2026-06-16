@@ -4,6 +4,7 @@ import java.io.*;
 public class Main {
 
     static String currentDirectory = System.getProperty("user.dir");
+    static List<Process> backgroundJobs = new ArrayList<>();
 
     public static void main(String[] args) throws Exception {
         Scanner sc = new Scanner(System.in);
@@ -17,16 +18,25 @@ public class Main {
 
             if (tokens.isEmpty()) continue;
 
+            boolean runInBackground = false;
+            if (tokens.get(tokens.size() - 1).equals("&")) {
+                runInBackground = true;
+                tokens.remove(tokens.size() - 1);
+            }
+
             String command = tokens.get(0);
 
             if (command.equals("exit")) {
                 break;
             }
 
-            // jobs builtin
             else if (command.equals("jobs")) {
-                // CodeCrafters jobs stage usually just requires builtin recognition
-                // and printing nothing when no background jobs exist
+                for (int i = 0; i < backgroundJobs.size(); i++) {
+                    Process p = backgroundJobs.get(i);
+                    if (p.isAlive()) {
+                        System.out.println("[" + (i + 1) + "] Running");
+                    }
+                }
             }
 
             else if (command.equals("echo")) {
@@ -176,7 +186,12 @@ public class Main {
                     }
 
                     Process process = pb.start();
-                    process.waitFor();
+
+                    if (runInBackground) {
+                        backgroundJobs.add(process);
+                    } else {
+                        process.waitFor();
+                    }
                 } else {
                     System.out.println(command + ": command not found");
                 }
