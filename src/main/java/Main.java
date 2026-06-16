@@ -30,10 +30,14 @@ public class Main {
                 String path = user.substring(3).trim();
                 File dir;
 
-                if (path.startsWith("/")) {
-                    dir = new File(path); // absolute path
-                } else {
-                    dir = new File(currentDirectory, path); // relative path
+                if (path.equals("~")) {
+                    dir = new File(System.getProperty("user.home"));
+                }
+                else if (path.startsWith("/")) {
+                    dir = new File(path);
+                }
+                else {
+                    dir = new File(currentDirectory, path);
                 }
 
                 if (dir.exists() && dir.isDirectory()) {
