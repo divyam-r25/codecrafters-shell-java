@@ -24,9 +24,7 @@ public class Main {
             }
 
             else if (command.equals("echo")) {
-                int redirectIndex = tokens.indexOf(">");
-                if (redirectIndex == -1) redirectIndex = tokens.indexOf("1>");
-
+                int redirectIndex = findRedirectIndex(tokens);
                 String output;
 
                 if (redirectIndex != -1) {
@@ -93,9 +91,7 @@ public class Main {
             }
 
             else {
-                int redirectIndex = tokens.indexOf(">");
-                if (redirectIndex == -1) redirectIndex = tokens.indexOf("1>");
-
+                int redirectIndex = findRedirectIndex(tokens);
                 File redirectFile = null;
                 List<String> cmdTokens = new ArrayList<>(tokens);
 
@@ -130,6 +126,7 @@ public class Main {
 
                     if (redirectFile != null) {
                         pb.redirectOutput(redirectFile);
+                        pb.redirectError(ProcessBuilder.Redirect.INHERIT); // IMPORTANT
                     } else {
                         pb.inheritIO();
                     }
@@ -143,6 +140,12 @@ public class Main {
         }
 
         sc.close();
+    }
+
+    public static int findRedirectIndex(List<String> tokens) {
+        int i = tokens.indexOf(">");
+        if (i == -1) i = tokens.indexOf("1>");
+        return i;
     }
 
     public static List<String> parseCommand(String input) {
