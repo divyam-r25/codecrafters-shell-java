@@ -27,11 +27,12 @@ public class Main {
                 int stdoutIndex = findStdoutRedirect(tokens);
                 int appendStdoutIndex = findAppendStdoutRedirect(tokens);
                 int stderrIndex = findStderrRedirect(tokens);
+                int appendStderrIndex = findAppendStderrRedirect(tokens);
 
                 int cutIndex = tokens.size();
-                if (stdoutIndex != -1) cutIndex = Math.min(cutIndex, stdoutIndex);
-                if (appendStdoutIndex != -1) cutIndex = Math.min(cutIndex, appendStdoutIndex);
-                if (stderrIndex != -1) cutIndex = Math.min(cutIndex, stderrIndex);
+                for (int idx : new int[]{stdoutIndex, appendStdoutIndex, stderrIndex, appendStderrIndex}) {
+                    if (idx != -1) cutIndex = Math.min(cutIndex, idx);
+                }
 
                 String output = cutIndex > 1
                         ? String.join(" ", tokens.subList(1, cutIndex))
@@ -41,8 +42,7 @@ public class Main {
                     int idx = stdoutIndex != -1 ? stdoutIndex : appendStdoutIndex;
                     boolean append = appendStdoutIndex != -1;
 
-                    String fileName = tokens.get(idx + 1);
-                    File outFile = new File(fileName);
+                    File outFile = new File(tokens.get(idx + 1));
                     File parent = outFile.getParentFile();
                     if (parent != null) parent.mkdirs();
 
@@ -53,12 +53,13 @@ public class Main {
                     System.out.println(output);
                 }
 
-                if (stderrIndex != -1) {
-                    String errFile = tokens.get(stderrIndex + 1);
-                    File file = new File(errFile);
-                    File parent = file.getParentFile();
+                // create stderr file if redirected/appended (echo doesn't write stderr)
+                if (stderrIndex != -1 || appendStderrIndex != -1) {
+                    int idx = stderrIndex != -1 ? stderrIndex : appendStderrIndex;
+                    File errFile = new File(tokens.get(idx + 1));
+                    File parent = errFile.getParentFile();
                     if (parent != null) parent.mkdirs();
-                    if (!file.exists()) file.createNewFile();
+                    if (!errFile.exists()) errFile.createNewFile();
                 }
             }
 
@@ -98,29 +99,34 @@ public class Main {
                 int stdoutIndex = findStdoutRedirect(tokens);
                 int appendStdoutIndex = findAppendStdoutRedirect(tokens);
                 int stderrIndex = findStderrRedirect(tokens);
+                int appendStderrIndex = findAppendStderrRedirect(tokens);
 
                 File stdoutFile = null;
                 File stderrFile = null;
-                boolean appendMode = false;
+                boolean appendStdout = false;
+                boolean appendStderr = false;
 
                 int cutIndex = tokens.size();
-                if (stdoutIndex != -1) cutIndex = Math.min(cutIndex, stdoutIndex);
-                if (appendStdoutIndex != -1) cutIndex = Math.min(cutIndex, appendStdoutIndex);
-                if (stderrIndex != -1) cutIndex = Math.min(cutIndex, stderrIndex);
+                for (int idx : new int[]{stdoutIndex, appendStdoutIndex, stderrIndex, appendStderrIndex}) {
+                    if (idx != -1) cutIndex = Math.min(cutIndex, idx);
+                }
 
                 List<String> cmdTokens = new ArrayList<>(tokens.subList(0, cutIndex));
 
                 if (stdoutIndex != -1 || appendStdoutIndex != -1) {
                     int idx = stdoutIndex != -1 ? stdoutIndex : appendStdoutIndex;
-                    appendMode = appendStdoutIndex != -1;
+                    appendStdout = appendStdoutIndex != -1;
 
                     stdoutFile = new File(tokens.get(idx + 1));
                     File parent = stdoutFile.getParentFile();
                     if (parent != null) parent.mkdirs();
                 }
 
-                if (stderrIndex != -1) {
-                    stderrFile = new File(tokens.get(stderrIndex + 1));
+                if (stderrIndex != -1 || appendStderrIndex != -1) {
+                    int idx = stderrIndex != -1 ? stderrIndex : appendStderrIndex;
+                    appendStderr = appendStderrIndex != -1;
+
+                    stderrFile = new File(tokens.get(idx + 1));
                     File parent = stderrFile.getParentFile();
                     if (parent != null) parent.mkdirs();
                 }
@@ -145,14 +151,21 @@ public class Main {
                     pb.directory(new File(currentDirectory));
 
                     if (stdoutFile != null) {
-                        if (appendMode) pb.redirectOutput(ProcessBuilder.Redirect.appendTo(stdoutFile));
-                        else pb.redirectOutput(stdoutFile);
+                        if (appendStdout) {
+                            pb.redirectOutput(ProcessBuilder.Redirect.appendTo(stdoutFile));
+                        } else {
+                            pb.redirectOutput(stdoutFile);
+                        }
                     } else {
                         pb.redirectOutput(ProcessBuilder.Redirect.INHERIT);
                     }
 
                     if (stderrFile != null) {
-                        pb.redirectError(stderrFile);
+                        if (appendStderr) {
+                            pb.redirectError(ProcessBuilder.Redirect.appendTo(stderrFile));
+                        } else {
+                            pb.redirectError(stderrFile);
+                        }
                     } else {
                         pb.redirectError(ProcessBuilder.Redirect.INHERIT);
                     }
@@ -182,6 +195,10 @@ public class Main {
 
     public static int findStderrRedirect(List<String> tokens) {
         return tokens.indexOf("2>");
+    }
+
+    public static int findAppendStderrRedirect(List<String> tokens) {
+        return tokens.indexOf("2>>");
     }
 
     public static List<String> parseCommand(String input) {
