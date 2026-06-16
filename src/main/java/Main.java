@@ -26,7 +26,6 @@ public class Main {
                 System.out.println(currentDirectory);
             }
 
-            // cd builtin (absolute path)
             else if (user.startsWith("cd ")) {
                 String path = user.substring(3).trim();
                 File dir = new File(path);
