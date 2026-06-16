@@ -24,12 +24,12 @@ public class Main {
             }
 
             else if (command.equals("echo")) {
-                int redirectIndex = findRedirectIndex(tokens);
+                int stdoutIndex = findStdoutRedirect(tokens);
                 String output;
 
-                if (redirectIndex != -1) {
-                    output = String.join(" ", tokens.subList(1, redirectIndex));
-                    String fileName = tokens.get(redirectIndex + 1);
+                if (stdoutIndex != -1) {
+                    output = String.join(" ", tokens.subList(1, stdoutIndex));
+                    String fileName = tokens.get(stdoutIndex + 1);
                     File outFile = new File(fileName);
 
                     File parent = outFile.getParentFile();
@@ -91,15 +91,28 @@ public class Main {
             }
 
             else {
-                int redirectIndex = findRedirectIndex(tokens);
-                File redirectFile = null;
-                List<String> cmdTokens = new ArrayList<>(tokens);
+                int stdoutIndex = findStdoutRedirect(tokens);
+                int stderrIndex = findStderrRedirect(tokens);
 
-                if (redirectIndex != -1) {
-                    redirectFile = new File(tokens.get(redirectIndex + 1));
-                    File parent = redirectFile.getParentFile();
+                File stdoutFile = null;
+                File stderrFile = null;
+
+                int cutIndex = tokens.size();
+                if (stdoutIndex != -1) cutIndex = Math.min(cutIndex, stdoutIndex);
+                if (stderrIndex != -1) cutIndex = Math.min(cutIndex, stderrIndex);
+
+                List<String> cmdTokens = new ArrayList<>(tokens.subList(0, cutIndex));
+
+                if (stdoutIndex != -1) {
+                    stdoutFile = new File(tokens.get(stdoutIndex + 1));
+                    File parent = stdoutFile.getParentFile();
                     if (parent != null) parent.mkdirs();
-                    cmdTokens = new ArrayList<>(tokens.subList(0, redirectIndex));
+                }
+
+                if (stderrIndex != -1) {
+                    stderrFile = new File(tokens.get(stderrIndex + 1));
+                    File parent = stderrFile.getParentFile();
+                    if (parent != null) parent.mkdirs();
                 }
 
                 String executablePath = null;
@@ -124,11 +137,16 @@ public class Main {
                     ProcessBuilder pb = new ProcessBuilder(processArgs);
                     pb.directory(new File(currentDirectory));
 
-                    if (redirectFile != null) {
-                        pb.redirectOutput(redirectFile);
-                        pb.redirectError(ProcessBuilder.Redirect.INHERIT); // IMPORTANT
+                    if (stdoutFile != null) {
+                        pb.redirectOutput(stdoutFile);
                     } else {
-                        pb.inheritIO();
+                        pb.redirectOutput(ProcessBuilder.Redirect.INHERIT);
+                    }
+
+                    if (stderrFile != null) {
+                        pb.redirectError(stderrFile);
+                    } else {
+                        pb.redirectError(ProcessBuilder.Redirect.INHERIT);
                     }
 
                     Process process = pb.start();
@@ -142,10 +160,14 @@ public class Main {
         sc.close();
     }
 
-    public static int findRedirectIndex(List<String> tokens) {
+    public static int findStdoutRedirect(List<String> tokens) {
         int i = tokens.indexOf(">");
         if (i == -1) i = tokens.indexOf("1>");
         return i;
+    }
+
+    public static int findStderrRedirect(List<String> tokens) {
+        return tokens.indexOf("2>");
     }
 
     public static List<String> parseCommand(String input) {
