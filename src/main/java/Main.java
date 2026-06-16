@@ -15,7 +15,9 @@ public class Main {
             String user = sc.nextLine();
             List<String> tokens = parseCommand(user);
 
-            if (tokens.isEmpty()) continue;
+            if (tokens.isEmpty()) {
+                continue;
+            }
 
             String command = tokens.get(0);
 
@@ -24,7 +26,11 @@ public class Main {
             }
 
             else if (command.equals("echo")) {
-                System.out.println(String.join(" ", tokens.subList(1, tokens.size())));
+                if (tokens.size() > 1) {
+                    System.out.println(String.join(" ", tokens.subList(1, tokens.size())));
+                } else {
+                    System.out.println();
+                }
             }
 
             else if (command.equals("pwd")) {
@@ -72,10 +78,19 @@ public class Main {
             }
 
             else {
-                String executablePath = findExecutable(command);
+                String executablePath = null;
+
+                if (isDirectExecutable(command)) {
+                    executablePath = command;
+                } else {
+                    executablePath = findExecutable(command);
+                }
 
                 if (executablePath != null) {
-                    ProcessBuilder pb = new ProcessBuilder(tokens);
+                    List<String> cmdList = new ArrayList<>(tokens);
+                    cmdList.set(0, executablePath);
+
+                    ProcessBuilder pb = new ProcessBuilder(cmdList);
                     pb.directory(new File(currentDirectory));
                     pb.inheritIO();
 
@@ -128,6 +143,11 @@ public class Main {
         }
 
         return tokens;
+    }
+
+    public static boolean isDirectExecutable(String cmd) {
+        File file = new File(cmd);
+        return file.exists() && file.canExecute();
     }
 
     public static String findExecutable(String cmd) {
