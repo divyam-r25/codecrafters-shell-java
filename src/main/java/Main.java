@@ -79,16 +79,21 @@ public class Main {
 
             else {
                 String executablePath = null;
+                boolean directExecutable = false;
 
                 if (isDirectExecutable(command)) {
                     executablePath = command;
+                    directExecutable = true;
                 } else {
                     executablePath = findExecutable(command);
                 }
 
                 if (executablePath != null) {
                     List<String> cmdList = new ArrayList<>(tokens);
-                    cmdList.set(0, executablePath);
+
+                    if (directExecutable) {
+                        cmdList.set(0, executablePath);
+                    }
 
                     ProcessBuilder pb = new ProcessBuilder(cmdList);
                     pb.directory(new File(currentDirectory));
