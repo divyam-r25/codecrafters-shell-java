@@ -1,5 +1,7 @@
 import java.util.Scanner;
 import java.io.File;
+import java.util.ArrayList;
+import java.util.List;
 
 public class Main {
 
@@ -19,13 +21,7 @@ public class Main {
             }
 
             else if (user.startsWith("echo ")) {
-                String output = user.substring(5);
-
-                if (output.startsWith("'") && output.endsWith("'")) {
-                    output = output.substring(1, output.length() - 1);
-                }
-
-                System.out.println(output);
+                System.out.println(parseEcho(user.substring(5)));
             }
 
             else if (user.equals("pwd")) {
@@ -38,11 +34,9 @@ public class Main {
 
                 if (path.equals("~")) {
                     dir = new File(System.getenv("HOME"));
-                }
-                else if (path.startsWith("/")) {
+                } else if (path.startsWith("/")) {
                     dir = new File(path);
-                }
-                else {
+                } else {
                     dir = new File(currentDirectory, path);
                 }
 
@@ -63,14 +57,12 @@ public class Main {
                     cmd.equals("cd")) {
 
                     System.out.println(cmd + " is a shell builtin");
-                }
-                else {
+                } else {
                     String executablePath = findExecutable(cmd);
 
                     if (executablePath != null) {
                         System.out.println(cmd + " is " + executablePath);
-                    }
-                    else {
+                    } else {
                         System.out.println(cmd + ": not found");
                     }
                 }
@@ -89,14 +81,40 @@ public class Main {
 
                     Process process = pb.start();
                     process.waitFor();
-                }
-                else {
+                } else {
                     System.out.println(command + ": command not found");
                 }
             }
         }
 
         sc.close();
+    }
+
+    public static String parseEcho(String input) {
+        List<String> tokens = new ArrayList<>();
+        StringBuilder current = new StringBuilder();
+        boolean inSingleQuote = false;
+
+        for (int i = 0; i < input.length(); i++) {
+            char c = input.charAt(i);
+
+            if (c == '\'') {
+                inSingleQuote = !inSingleQuote;
+            } else if (c == ' ' && !inSingleQuote) {
+                if (current.length() > 0) {
+                    tokens.add(current.toString());
+                    current.setLength(0);
+                }
+            } else {
+                current.append(c);
+            }
+        }
+
+        if (current.length() > 0) {
+            tokens.add(current.toString());
+        }
+
+        return String.join(" ", tokens);
     }
 
     public static String findExecutable(String cmd) {
