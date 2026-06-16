@@ -79,7 +79,41 @@ public class Main {
             }
 
             else {
-                String executablePath = null;
+                int stdoutIndex = findToken(tokens, ">", "1>");
+                int appendStdoutIndex = findToken(tokens, ">>", "1>>");
+                int stderrIndex = findToken(tokens, "2>");
+                int appendStderrIndex = findToken(tokens, "2>>");
+
+                int cutIndex = tokens.size();
+                for (int idx : new int[]{stdoutIndex, appendStdoutIndex, stderrIndex, appendStderrIndex}) {
+                    if (idx != -1) cutIndex = Math.min(cutIndex, idx);
+                }
+
+                List<String> cmdTokens = new ArrayList<>(tokens.subList(0, cutIndex));
+
+                File stdoutFile = null;
+                File stderrFile = null;
+                boolean appendStdout = false;
+                boolean appendStderr = false;
+
+                if (stdoutIndex != -1 || appendStdoutIndex != -1) {
+                    int idx = stdoutIndex != -1 ? stdoutIndex : appendStdoutIndex;
+                    appendStdout = appendStdoutIndex != -1;
+                    stdoutFile = new File(tokens.get(idx + 1));
+                    File parent = stdoutFile.getParentFile();
+                    if (parent != null) parent.mkdirs();
+                }
+
+                if (stderrIndex != -1 || appendStderrIndex != -1) {
+                    int idx = stderrIndex != -1 ? stderrIndex : appendStderrIndex;
+                    appendStderr = appendStderrIndex != -1;
+                    stderrFile = new File(tokens.get(idx + 1));
+                    File parent = stderrFile.getParentFile();
+                    if (parent != null) parent.mkdirs();
+                }
+
+                command = cmdTokens.get(0);
+                String executablePath;
                 boolean directExecutable = false;
 
                 if (isDirectExecutable(command)) {
@@ -90,14 +124,33 @@ public class Main {
                 }
 
                 if (executablePath != null) {
-                    List<String> processArgs = new ArrayList<>(tokens);
+                    List<String> processArgs = new ArrayList<>(cmdTokens);
                     if (directExecutable) {
                         processArgs.set(0, executablePath);
                     }
 
                     ProcessBuilder pb = new ProcessBuilder(processArgs);
                     pb.directory(new File(currentDirectory));
-                    pb.inheritIO();
+
+                    if (stdoutFile != null) {
+                        if (appendStdout) {
+                            pb.redirectOutput(ProcessBuilder.Redirect.appendTo(stdoutFile));
+                        } else {
+                            pb.redirectOutput(stdoutFile);
+                        }
+                    } else {
+                        pb.redirectOutput(ProcessBuilder.Redirect.INHERIT);
+                    }
+
+                    if (stderrFile != null) {
+                        if (appendStderr) {
+                            pb.redirectError(ProcessBuilder.Redirect.appendTo(stderrFile));
+                        } else {
+                            pb.redirectError(stderrFile);
+                        }
+                    } else {
+                        pb.redirectError(ProcessBuilder.Redirect.INHERIT);
+                    }
 
                     Process process = pb.start();
 
@@ -114,6 +167,15 @@ public class Main {
         }
 
         sc.close();
+    }
+
+    static int findToken(List<String> tokens, String... options) {
+        for (int i = 0; i < tokens.size(); i++) {
+            for (String option : options) {
+                if (tokens.get(i).equals(option)) return i;
+            }
+        }
+        return -1;
     }
 
     public static List<String> parseCommand(String input) {
