@@ -31,7 +31,7 @@ public class Main {
                 File dir;
 
                 if (path.equals("~")) {
-                    dir = new File(System.getProperty("user.home"));
+                    dir = new File(System.getenv("HOME"));
                 }
                 else if (path.startsWith("/")) {
                     dir = new File(path);
