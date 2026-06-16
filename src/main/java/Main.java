@@ -141,37 +141,74 @@ public class Main {
         sc.close();
     }
 
-    static List<String> parseCommand(String input) {
-        List<String> tokens = new ArrayList<>();
-        StringBuilder current = new StringBuilder();
-        boolean inSingleQuote = false;
-        boolean inDoubleQuote = false;
+   static List<String> parseCommand(String input) {
+    List<String> tokens = new ArrayList<>();
+    StringBuilder current = new StringBuilder();
 
-        for (int i = 0; i < input.length(); i++) {
-            char c = input.charAt(i);
+    boolean inSingle = false;
+    boolean inDouble = false;
 
-            if (c == '\\' && !inSingleQuote) {
-                if (i + 1 < input.length()) {
-                    current.append(input.charAt(i + 1));
-                    i++;
-                }
-            } else if (c == '\'' && !inDoubleQuote) {
-                inSingleQuote = !inSingleQuote;
-            } else if (c == '"' && !inSingleQuote) {
-                inDoubleQuote = !inDoubleQuote;
-            } else if (c == ' ' && !inSingleQuote && !inDoubleQuote) {
+    for (int i = 0; i < input.length(); i++) {
+        char c = input.charAt(i);
+
+        if (c == '\'' && !inDouble) {
+            inSingle = !inSingle;
+            continue;
+        }
+
+        if (c == '"' && !inSingle) {
+            inDouble = !inDouble;
+            continue;
+        }
+
+        if (!inSingle && !inDouble) {
+           
+            if (c == '>' || c == '1' || c == '2') {
                 if (current.length() > 0) {
                     tokens.add(current.toString());
                     current.setLength(0);
                 }
-            } else {
-                current.append(c);
+
+                if ((c == '1' || c == '2') && i + 1 < input.length() && input.charAt(i + 1) == '>') {
+                    String token = "" + c + ">";
+                    i++;
+                    if (i + 1 < input.length() && input.charAt(i + 1) == '>') {
+                        token += ">";
+                        i++;
+                    }
+                    tokens.add(token);
+                    continue;
+                }
+
+                if (c == '>') {
+                    String token = ">";
+                    if (i + 1 < input.length() && input.charAt(i + 1) == '>') {
+                        token = ">>";
+                        i++;
+                    }
+                    tokens.add(token);
+                    continue;
+                }
+            }
+
+            if (Character.isWhitespace(c)) {
+                if (current.length() > 0) {
+                    tokens.add(current.toString());
+                    current.setLength(0);
+                }
+                continue;
             }
         }
 
-        if (current.length() > 0) tokens.add(current.toString());
-        return tokens;
+        current.append(c);
     }
+
+    if (current.length() > 0) {
+        tokens.add(current.toString());
+    }
+
+    return tokens;
+}
 
     static boolean isDirectExecutable(String cmd) {
         File file = new File(cmd);
