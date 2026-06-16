@@ -4,6 +4,7 @@ import java.io.*;
 public class Main {
 
     static String currentDirectory = System.getProperty("user.dir");
+
     static class Job {
         Process process;
         String command;
@@ -26,7 +27,8 @@ public class Main {
             String originalUser = sc.nextLine();
             List<String> tokens = parseCommand(originalUser);
 
-            if (tokens.isEmpty()) continue;
+            if (tokens.isEmpty())
+                continue;
 
             boolean runInBackground = false;
             if (tokens.get(tokens.size() - 1).equals("&")) {
@@ -45,7 +47,8 @@ public class Main {
 
                 for (String op : Arrays.asList(">", "1>", ">>", "1>>", "2>", "2>>")) {
                     int idx = tokens.indexOf(op);
-                    if (idx != -1) cutIndex = Math.min(cutIndex, idx);
+                    if (idx != -1)
+                        cutIndex = Math.min(cutIndex, idx);
                 }
 
                 String output = "";
@@ -64,9 +67,12 @@ public class Main {
                 String path = tokens.size() > 1 ? tokens.get(1) : "";
                 File dir;
 
-                if (path.equals("~")) dir = new File(System.getenv("HOME"));
-                else if (path.startsWith("/")) dir = new File(path);
-                else dir = new File(currentDirectory, path);
+                if (path.equals("~"))
+                    dir = new File(System.getenv("HOME"));
+                else if (path.startsWith("/"))
+                    dir = new File(path);
+                else
+                    dir = new File(currentDirectory, path);
 
                 if (dir.exists() && dir.isDirectory()) {
                     currentDirectory = dir.getCanonicalPath();
@@ -89,8 +95,7 @@ public class Main {
                         System.out.println(cmd + ": not found");
                     }
                 }
-            }
-            else if (command.equals("jobs")) {
+            } else if (command.equals("jobs")) {
                 for (int i = 0; i < backgroundJobs.size(); i++) {
                     Job job = backgroundJobs.get(i);
 
@@ -115,7 +120,8 @@ public class Main {
 
                 if (executablePath != null) {
                     List<String> processArgs = new ArrayList<>(tokens);
-                    if (directExecutable) processArgs.set(0, executablePath);
+                    if (directExecutable)
+                        processArgs.set(0, executablePath);
 
                     ProcessBuilder pb = new ProcessBuilder(processArgs);
                     pb.directory(new File(currentDirectory));
@@ -127,8 +133,8 @@ public class Main {
                         String jobCmd = String.join(" ", tokens) + " &";
                         backgroundJobs.add(new Job(process, jobCmd));
                         System.out.printf("[%d] %d%n",
-                            backgroundJobs.size(),
-                            process.pid());
+                                backgroundJobs.size(),
+                                process.pid());
                     } else {
                         process.waitFor();
                     }
@@ -141,74 +147,75 @@ public class Main {
         sc.close();
     }
 
-   static List<String> parseCommand(String input) {
-    List<String> tokens = new ArrayList<>();
-    StringBuilder current = new StringBuilder();
+    static List<String> parseCommand(String input) {
+        List<String> tokens = new ArrayList<>();
+        StringBuilder current = new StringBuilder();
 
-    boolean inSingle = false;
-    boolean inDouble = false;
+        boolean inSingle = false;
+        boolean inDouble = false;
 
-    for (int i = 0; i < input.length(); i++) {
-        char c = input.charAt(i);
+        for (int i = 0; i < input.length(); i++) {
+            char c = input.charAt(i);
 
-        if (c == '\'' && !inDouble) {
-            inSingle = !inSingle;
-            continue;
-        }
-
-        if (c == '"' && !inSingle) {
-            inDouble = !inDouble;
-            continue;
-        }
-
-        if (!inSingle && !inDouble) {
-           
-            if (c == '>' || c == '1' || c == '2') {
-                if (current.length() > 0) {
-                    tokens.add(current.toString());
-                    current.setLength(0);
-                }
-
-                if ((c == '1' || c == '2') && i + 1 < input.length() && input.charAt(i + 1) == '>') {
-                    String token = "" + c + ">";
-                    i++;
-                    if (i + 1 < input.length() && input.charAt(i + 1) == '>') {
-                        token += ">";
-                        i++;
-                    }
-                    tokens.add(token);
-                    continue;
-                }
-
-                if (c == '>') {
-                    String token = ">";
-                    if (i + 1 < input.length() && input.charAt(i + 1) == '>') {
-                        token = ">>";
-                        i++;
-                    }
-                    tokens.add(token);
-                    continue;
-                }
-            }
-
-            if (Character.isWhitespace(c)) {
-                if (current.length() > 0) {
-                    tokens.add(current.toString());
-                    current.setLength(0);
-                }
+            if (c == '\'' && !inDouble) {
+                inSingle = !inSingle;
                 continue;
             }
+
+            if (c == '"' && !inSingle) {
+                inDouble = !inDouble;
+                continue;
+            }
+
+            if (!inSingle && !inDouble) {
+
+                if (current.length() == 0) {
+
+                    if (c == '>') {
+                        if (i + 1 < input.length() && input.charAt(i + 1) == '>') {
+                            tokens.add(">>");
+                            i++;
+                        } else {
+                            tokens.add(">");
+                        }
+                        continue;
+                    }
+
+                    if ((c == '1' || c == '2')
+                            && i + 1 < input.length()
+                            && input.charAt(i + 1) == '>') {
+
+                        String token = "" + c + ">";
+                        i++;
+
+                        if (i + 1 < input.length() && input.charAt(i + 1) == '>') {
+                            token += ">";
+                            i++;
+                        }
+
+                        tokens.add(token);
+                        continue;
+                    }
+                }
+
+                if (Character.isWhitespace(c)) {
+                    if (current.length() > 0) {
+                        tokens.add(current.toString());
+                        current.setLength(0);
+                    }
+                    continue;
+                }
+            }
+
+            current.append(c);
         }
 
-        current.append(c);
-    }
+        if (current.length() > 0) {
+            tokens.add(current.toString());
+        }
 
-    if (current.length() > 0) {
-        tokens.add(current.toString());
+        return tokens;
     }
-
-    return tokens;
-}
 
     static boolean isDirectExecutable(String cmd) {
         File file = new File(cmd);
