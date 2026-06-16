@@ -17,6 +17,10 @@ public class Main {
             else if (user.startsWith("echo ")) {
                 System.out.println(user.substring(5));
             }
+            
+            else if (user.equals("pwd")) {
+                System.out.println(System.getProperty("user.dir"));
+            }
 
             else if (user.startsWith("type ")) {
                 String cmd = user.substring(5);
