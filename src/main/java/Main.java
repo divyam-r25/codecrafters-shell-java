@@ -15,9 +15,7 @@ public class Main {
             String user = sc.nextLine();
             List<String> tokens = parseCommand(user);
 
-            if (tokens.isEmpty()) {
-                continue;
-            }
+            if (tokens.isEmpty()) continue;
 
             String command = tokens.get(0);
 
@@ -26,20 +24,24 @@ public class Main {
             }
 
             else if (command.equals("echo")) {
-                String output = tokens.size() > 1
-                        ? String.join(" ", tokens.subList(1, tokens.size()))
-                        : "";
-
                 int redirectIndex = tokens.indexOf(">");
+                String output;
 
-                if (redirectIndex != -1 && redirectIndex + 1 < tokens.size()) {
+                if (redirectIndex != -1) {
+                    output = String.join(" ", tokens.subList(1, redirectIndex));
                     String fileName = tokens.get(redirectIndex + 1);
-                    File outFile = new File(currentDirectory, fileName);
+                    File outFile = new File(fileName); // FIXED
+
+                    File parent = outFile.getParentFile();
+                    if (parent != null) parent.mkdirs();
 
                     try (FileWriter writer = new FileWriter(outFile)) {
                         writer.write(output + System.lineSeparator());
                     }
                 } else {
+                    output = tokens.size() > 1
+                            ? String.join(" ", tokens.subList(1, tokens.size()))
+                            : "";
                     System.out.println(output);
                 }
             }
@@ -93,45 +95,45 @@ public class Main {
                 File redirectFile = null;
                 List<String> cmdTokens = new ArrayList<>(tokens);
 
-                if (redirectIndex != -1 && redirectIndex + 1 < tokens.size()) {
-                    redirectFile = new File(currentDirectory, tokens.get(redirectIndex + 1));
+                if (redirectIndex != -1) {
+                    redirectFile = new File(tokens.get(redirectIndex + 1)); // FIXED
+                    File parent = redirectFile.getParentFile();
+                    if (parent != null) parent.mkdirs();
                     cmdTokens = new ArrayList<>(tokens.subList(0, redirectIndex));
                 }
 
                 String executablePath = null;
                 boolean directExecutable = false;
 
-                if (!cmdTokens.isEmpty()) {
-                    command = cmdTokens.get(0);
+                command = cmdTokens.get(0);
 
-                    if (isDirectExecutable(command)) {
-                        executablePath = command;
-                        directExecutable = true;
-                    } else {
-                        executablePath = findExecutable(command);
+                if (isDirectExecutable(command)) {
+                    executablePath = command;
+                    directExecutable = true;
+                } else {
+                    executablePath = findExecutable(command);
+                }
+
+                if (executablePath != null) {
+                    List<String> processArgs = new ArrayList<>(cmdTokens);
+
+                    if (directExecutable) {
+                        processArgs.set(0, executablePath);
                     }
 
-                    if (executablePath != null) {
-                        List<String> processArgs = new ArrayList<>(cmdTokens);
+                    ProcessBuilder pb = new ProcessBuilder(processArgs);
+                    pb.directory(new File(currentDirectory));
 
-                        if (directExecutable) {
-                            processArgs.set(0, executablePath);
-                        }
-
-                        ProcessBuilder pb = new ProcessBuilder(processArgs);
-                        pb.directory(new File(currentDirectory));
-
-                        if (redirectFile != null) {
-                            pb.redirectOutput(redirectFile);
-                        } else {
-                            pb.inheritIO();
-                        }
-
-                        Process process = pb.start();
-                        process.waitFor();
+                    if (redirectFile != null) {
+                        pb.redirectOutput(redirectFile);
                     } else {
-                        System.out.println(command + ": command not found");
+                        pb.inheritIO();
                     }
+
+                    Process process = pb.start();
+                    process.waitFor();
+                } else {
+                    System.out.println(command + ": command not found");
                 }
             }
         }
