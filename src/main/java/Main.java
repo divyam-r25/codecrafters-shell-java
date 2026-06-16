@@ -27,8 +27,7 @@ public class Main {
             String originalUser = sc.nextLine();
             List<String> tokens = parseCommand(originalUser);
 
-            if (tokens.isEmpty())
-                continue;
+            if (tokens.isEmpty()) continue;
 
             boolean runInBackground = false;
             if (tokens.get(tokens.size() - 1).equals("&")) {
@@ -47,8 +46,7 @@ public class Main {
 
                 for (String op : Arrays.asList(">", "1>", ">>", "1>>", "2>", "2>>")) {
                     int idx = tokens.indexOf(op);
-                    if (idx != -1)
-                        cutIndex = Math.min(cutIndex, idx);
+                    if (idx != -1) cutIndex = Math.min(cutIndex, idx);
                 }
 
                 String output = "";
@@ -67,12 +65,9 @@ public class Main {
                 String path = tokens.size() > 1 ? tokens.get(1) : "";
                 File dir;
 
-                if (path.equals("~"))
-                    dir = new File(System.getenv("HOME"));
-                else if (path.startsWith("/"))
-                    dir = new File(path);
-                else
-                    dir = new File(currentDirectory, path);
+                if (path.equals("~")) dir = new File(System.getenv("HOME"));
+                else if (path.startsWith("/")) dir = new File(path);
+                else dir = new File(currentDirectory, path);
 
                 if (dir.exists() && dir.isDirectory()) {
                     currentDirectory = dir.getCanonicalPath();
@@ -95,7 +90,9 @@ public class Main {
                         System.out.println(cmd + ": not found");
                     }
                 }
-            } else if (command.equals("jobs")) {
+            }
+
+            else if (command.equals("jobs")) {
                 for (int i = 0; i < backgroundJobs.size(); i++) {
                     Job job = backgroundJobs.get(i);
 
@@ -108,6 +105,47 @@ public class Main {
             }
 
             else {
+                int redirectIndex = -1;
+                boolean appendStdout = false;
+                boolean appendStderr = false;
+                boolean redirectStderr = false;
+
+                for (int i = 0; i < tokens.size(); i++) {
+                    String t = tokens.get(i);
+
+                    if (t.equals(">") || t.equals("1>")) {
+                        redirectIndex = i;
+                        break;
+                    } else if (t.equals(">>") || t.equals("1>>")) {
+                        redirectIndex = i;
+                        appendStdout = true;
+                        break;
+                    } else if (t.equals("2>")) {
+                        redirectIndex = i;
+                        redirectStderr = true;
+                        break;
+                    } else if (t.equals("2>>")) {
+                        redirectIndex = i;
+                        appendStderr = true;
+                        break;
+                    }
+                }
+
+                List<String> commandTokens;
+                File redirectFile = null;
+
+                if (redirectIndex != -1) {
+                    commandTokens = new ArrayList<>(tokens.subList(0, redirectIndex));
+                    redirectFile = new File(tokens.get(redirectIndex + 1));
+
+                    File parent = redirectFile.getParentFile();
+                    if (parent != null) parent.mkdirs();
+                } else {
+                    commandTokens = new ArrayList<>(tokens);
+                }
+
+                command = commandTokens.get(0);
+
                 String executablePath;
                 boolean directExecutable = false;
 
@@ -119,18 +157,34 @@ public class Main {
                 }
 
                 if (executablePath != null) {
-                    List<String> processArgs = new ArrayList<>(tokens);
-                    if (directExecutable)
-                        processArgs.set(0, executablePath);
+                    List<String> processArgs = new ArrayList<>(commandTokens);
+                    if (directExecutable) processArgs.set(0, executablePath);
 
                     ProcessBuilder pb = new ProcessBuilder(processArgs);
                     pb.directory(new File(currentDirectory));
-                    pb.inheritIO();
+
+                    if (redirectFile != null) {
+                        if (appendStdout) {
+                            pb.redirectOutput(ProcessBuilder.Redirect.appendTo(redirectFile));
+                            pb.redirectError(ProcessBuilder.Redirect.INHERIT);
+                        } else if (appendStderr) {
+                            pb.redirectError(ProcessBuilder.Redirect.appendTo(redirectFile));
+                            pb.redirectOutput(ProcessBuilder.Redirect.INHERIT);
+                        } else if (redirectStderr) {
+                            pb.redirectError(redirectFile);
+                            pb.redirectOutput(ProcessBuilder.Redirect.INHERIT);
+                        } else {
+                            pb.redirectOutput(redirectFile);
+                            pb.redirectError(ProcessBuilder.Redirect.INHERIT);
+                        }
+                    } else {
+                        pb.inheritIO();
+                    }
 
                     Process process = pb.start();
 
                     if (runInBackground) {
-                        String jobCmd = String.join(" ", tokens) + " &";
+                        String jobCmd = String.join(" ", commandTokens) + " &";
                         backgroundJobs.add(new Job(process, jobCmd));
                         System.out.printf("[%d] %d%n",
                                 backgroundJobs.size(),
@@ -168,9 +222,7 @@ public class Main {
             }
 
             if (!inSingle && !inDouble) {
-
                 if (current.length() == 0) {
-
                     if (c == '>') {
                         if (i + 1 < input.length() && input.charAt(i + 1) == '>') {
                             tokens.add(">>");
@@ -181,9 +233,9 @@ public class Main {
                         continue;
                     }
 
-                    if ((c == '1' || c == '2')
-                            && i + 1 < input.length()
-                            && input.charAt(i + 1) == '>') {
+                    if ((c == '1' || c == '2') &&
+                        i + 1 < input.length() &&
+                        input.charAt(i + 1) == '>') {
 
                         String token = "" + c + ">";
                         i++;
