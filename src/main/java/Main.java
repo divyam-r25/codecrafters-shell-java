@@ -40,7 +40,45 @@ public class Main {
             }
 
             else if (command.equals("echo")) {
-                System.out.println(String.join(" ", tokens.subList(1, tokens.size())));
+                int cutIndex = tokens.size();
+
+                for (String op : Arrays.asList(">", "1>", ">>", "1>>", "2>", "2>>")) {
+                    int idx = tokens.indexOf(op);
+                    if (idx != -1) cutIndex = Math.min(cutIndex, idx);
+                }
+
+                String output = "";
+                if (cutIndex > 1) {
+                    output = String.join(" ", tokens.subList(1, cutIndex));
+                }
+
+                int stdoutIndex = findToken(tokens, ">", "1>");
+                int appendStdoutIndex = findToken(tokens, ">>", "1>>");
+                int stderrIndex = findToken(tokens, "2>");
+                int appendStderrIndex = findToken(tokens, "2>>");
+
+                if (stdoutIndex != -1 || appendStdoutIndex != -1) {
+                    int idx = stdoutIndex != -1 ? stdoutIndex : appendStdoutIndex;
+                    boolean append = appendStdoutIndex != -1;
+
+                    File outFile = new File(tokens.get(idx + 1));
+                    File parent = outFile.getParentFile();
+                    if (parent != null) parent.mkdirs();
+
+                    try (FileWriter writer = new FileWriter(outFile, append)) {
+                        writer.write(output + System.lineSeparator());
+                    }
+                } else {
+                    System.out.println(output);
+                }
+
+                if (stderrIndex != -1 || appendStderrIndex != -1) {
+                    int idx = stderrIndex != -1 ? stderrIndex : appendStderrIndex;
+                    File errFile = new File(tokens.get(idx + 1));
+                    File parent = errFile.getParentFile();
+                    if (parent != null) parent.mkdirs();
+                    if (!errFile.exists()) errFile.createNewFile();
+                }
             }
 
             else if (command.equals("pwd")) {
@@ -100,16 +138,12 @@ public class Main {
                     int idx = stdoutIndex != -1 ? stdoutIndex : appendStdoutIndex;
                     appendStdout = appendStdoutIndex != -1;
                     stdoutFile = new File(tokens.get(idx + 1));
-                    File parent = stdoutFile.getParentFile();
-                    if (parent != null) parent.mkdirs();
                 }
 
                 if (stderrIndex != -1 || appendStderrIndex != -1) {
                     int idx = stderrIndex != -1 ? stderrIndex : appendStderrIndex;
                     appendStderr = appendStderrIndex != -1;
                     stderrFile = new File(tokens.get(idx + 1));
-                    File parent = stderrFile.getParentFile();
-                    if (parent != null) parent.mkdirs();
                 }
 
                 command = cmdTokens.get(0);
@@ -125,29 +159,21 @@ public class Main {
 
                 if (executablePath != null) {
                     List<String> processArgs = new ArrayList<>(cmdTokens);
-                    if (directExecutable) {
-                        processArgs.set(0, executablePath);
-                    }
+                    if (directExecutable) processArgs.set(0, executablePath);
 
                     ProcessBuilder pb = new ProcessBuilder(processArgs);
                     pb.directory(new File(currentDirectory));
 
                     if (stdoutFile != null) {
-                        if (appendStdout) {
-                            pb.redirectOutput(ProcessBuilder.Redirect.appendTo(stdoutFile));
-                        } else {
-                            pb.redirectOutput(stdoutFile);
-                        }
+                        if (appendStdout) pb.redirectOutput(ProcessBuilder.Redirect.appendTo(stdoutFile));
+                        else pb.redirectOutput(stdoutFile);
                     } else {
                         pb.redirectOutput(ProcessBuilder.Redirect.INHERIT);
                     }
 
                     if (stderrFile != null) {
-                        if (appendStderr) {
-                            pb.redirectError(ProcessBuilder.Redirect.appendTo(stderrFile));
-                        } else {
-                            pb.redirectError(stderrFile);
-                        }
+                        if (appendStderr) pb.redirectError(ProcessBuilder.Redirect.appendTo(stderrFile));
+                        else pb.redirectError(stderrFile);
                     } else {
                         pb.redirectError(ProcessBuilder.Redirect.INHERIT);
                     }
@@ -165,7 +191,6 @@ public class Main {
                 }
             }
         }
-
         sc.close();
     }
 
@@ -181,7 +206,6 @@ public class Main {
     public static List<String> parseCommand(String input) {
         List<String> tokens = new ArrayList<>();
         StringBuilder current = new StringBuilder();
-
         boolean inSingleQuote = false;
         boolean inDoubleQuote = false;
 
