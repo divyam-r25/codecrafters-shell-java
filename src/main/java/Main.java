@@ -28,10 +28,16 @@ public class Main {
 
             else if (user.startsWith("cd ")) {
                 String path = user.substring(3).trim();
-                File dir = new File(path);
+                File dir;
+
+                if (path.startsWith("/")) {
+                    dir = new File(path); // absolute path
+                } else {
+                    dir = new File(currentDirectory, path); // relative path
+                }
 
                 if (dir.exists() && dir.isDirectory()) {
-                    currentDirectory = dir.getAbsolutePath();
+                    currentDirectory = dir.getCanonicalPath();
                 } else {
                     System.out.println("cd: " + path + ": No such file or directory");
                 }
