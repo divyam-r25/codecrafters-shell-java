@@ -1,7 +1,5 @@
-import java.util.Scanner;
+import java.util.*;
 import java.io.File;
-import java.util.ArrayList;
-import java.util.List;
 
 public class Main {
 
@@ -15,21 +13,26 @@ public class Main {
             System.out.flush();
 
             String user = sc.nextLine();
+            List<String> tokens = parseCommand(user);
 
-            if (user.equals("exit")) {
+            if (tokens.isEmpty()) continue;
+
+            String command = tokens.get(0);
+
+            if (command.equals("exit")) {
                 break;
             }
 
-            else if (user.startsWith("echo ")) {
-                System.out.println(parseEcho(user.substring(5)));
+            else if (command.equals("echo")) {
+                System.out.println(String.join(" ", tokens.subList(1, tokens.size())));
             }
 
-            else if (user.equals("pwd")) {
+            else if (command.equals("pwd")) {
                 System.out.println(currentDirectory);
             }
 
-            else if (user.startsWith("cd ")) {
-                String path = user.substring(3).trim();
+            else if (command.equals("cd")) {
+                String path = tokens.size() > 1 ? tokens.get(1) : "";
                 File dir;
 
                 if (path.equals("~")) {
@@ -47,8 +50,8 @@ public class Main {
                 }
             }
 
-            else if (user.startsWith("type ")) {
-                String cmd = user.substring(5);
+            else if (command.equals("type")) {
+                String cmd = tokens.size() > 1 ? tokens.get(1) : "";
 
                 if (cmd.equals("echo") ||
                     cmd.equals("exit") ||
@@ -69,13 +72,12 @@ public class Main {
             }
 
             else {
-                String[] parts = user.trim().split("\\s+");
-                String command = parts[0];
-
                 String executablePath = findExecutable(command);
 
                 if (executablePath != null) {
-                    ProcessBuilder pb = new ProcessBuilder(parts);
+                    List<String> cmdList = new ArrayList<>(tokens);
+
+                    ProcessBuilder pb = new ProcessBuilder(cmdList);
                     pb.directory(new File(currentDirectory));
                     pb.inheritIO();
 
@@ -90,7 +92,7 @@ public class Main {
         sc.close();
     }
 
-    public static String parseEcho(String input) {
+    public static List<String> parseCommand(String input) {
         List<String> tokens = new ArrayList<>();
         StringBuilder current = new StringBuilder();
         boolean inSingleQuote = false;
@@ -100,12 +102,14 @@ public class Main {
 
             if (c == '\'') {
                 inSingleQuote = !inSingleQuote;
-            } else if (c == ' ' && !inSingleQuote) {
+            }
+            else if (c == ' ' && !inSingleQuote) {
                 if (current.length() > 0) {
                     tokens.add(current.toString());
                     current.setLength(0);
                 }
-            } else {
+            }
+            else {
                 current.append(c);
             }
         }
@@ -114,7 +118,7 @@ public class Main {
             tokens.add(current.toString());
         }
 
-        return String.join(" ", tokens);
+        return tokens;
     }
 
     public static String findExecutable(String cmd) {
