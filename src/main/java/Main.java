@@ -1,5 +1,6 @@
 import java.util.Scanner;
 import java.io.File;
+
 public class Main {
 
     public static void main(String[] args) throws Exception {
@@ -7,25 +8,34 @@ public class Main {
 
         while (true) {
             System.out.print("$ ");
+            System.out.flush();
 
             String user = sc.nextLine();
 
-            if (user.equals("exit")) {
+            // exit builtin
+            if (user.equals("exit 0")) {
                 break;
             }
 
+            // echo builtin
             else if (user.startsWith("echo ")) {
                 System.out.println(user.substring(5));
             }
-            
+
+            // pwd builtin
             else if (user.equals("pwd")) {
                 System.out.println(System.getProperty("user.dir"));
             }
 
+            // type builtin
             else if (user.startsWith("type ")) {
                 String cmd = user.substring(5);
 
-                if (cmd.equals("echo") || cmd.equals("exit") || cmd.equals("type")) {
+                if (cmd.equals("echo") ||
+                    cmd.equals("exit") ||
+                    cmd.equals("type") ||
+                    cmd.equals("pwd")) {
+
                     System.out.println(cmd + " is a shell builtin");
                 } 
                 else {
@@ -40,8 +50,9 @@ public class Main {
                 }
             }
 
-           else {
-                String[] parts = user.split(" ");
+            // external commands
+            else {
+                String[] parts = user.trim().split("\\s+");
                 String command = parts[0];
 
                 String executablePath = findExecutable(command);
@@ -52,7 +63,7 @@ public class Main {
 
                     Process process = pb.start();
                     process.waitFor();
-                }
+                } 
                 else {
                     System.out.println(command + ": command not found");
                 }
