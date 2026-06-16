@@ -4,7 +4,6 @@ import java.io.*;
 public class Main {
 
     static String currentDirectory = System.getProperty("user.dir");
-
     static class Job {
         Process process;
         String command;
@@ -39,15 +38,6 @@ public class Main {
 
             if (command.equals("exit")) {
                 break;
-            }
-
-            else if (command.equals("jobs")) {
-                for (int i = 0; i < backgroundJobs.size(); i++) {
-                    Job job = backgroundJobs.get(i);
-                    if (job.process.isAlive()) {
-                        System.out.println("[" + (i + 1) + "] Running " + job.command);
-                    }
-                }
             }
 
             else if (command.equals("echo")) {
@@ -100,6 +90,17 @@ public class Main {
                     }
                 }
             }
+            else if (command.equals("jobs")) {
+                for (int i = 0; i < backgroundJobs.size(); i++) {
+                    Job job = backgroundJobs.get(i);
+
+                    if (job.process.isAlive()) {
+                        System.out.printf("[%d]+  Running                 %s%n",
+                                i + 1,
+                                job.command);
+                    }
+                }
+            }
 
             else {
                 String executablePath;
@@ -125,7 +126,9 @@ public class Main {
                     if (runInBackground) {
                         String jobCmd = String.join(" ", tokens) + " &";
                         backgroundJobs.add(new Job(process, jobCmd));
-                        System.out.println("[" + backgroundJobs.size() + "] " + process.pid());
+                        System.out.printf("[%d] %d%n",
+                            backgroundJobs.size(),
+                            process.pid());
                     } else {
                         process.waitFor();
                     }
