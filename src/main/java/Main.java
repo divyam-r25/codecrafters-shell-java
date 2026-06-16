@@ -4,7 +4,18 @@ import java.io.*;
 public class Main {
 
     static String currentDirectory = System.getProperty("user.dir");
-    static List<Process> backgroundJobs = new ArrayList<>();
+
+    static class Job {
+        Process process;
+        String command;
+
+        Job(Process process, String command) {
+            this.process = process;
+            this.command = command;
+        }
+    }
+
+    static List<Job> backgroundJobs = new ArrayList<>();
 
     public static void main(String[] args) throws Exception {
         Scanner sc = new Scanner(System.in);
@@ -13,8 +24,8 @@ public class Main {
             System.out.print("$ ");
             System.out.flush();
 
-            String user = sc.nextLine();
-            List<String> tokens = parseCommand(user);
+            String originalUser = sc.nextLine();
+            List<String> tokens = parseCommand(originalUser);
 
             if (tokens.isEmpty()) continue;
 
@@ -32,9 +43,9 @@ public class Main {
 
             else if (command.equals("jobs")) {
                 for (int i = 0; i < backgroundJobs.size(); i++) {
-                    Process p = backgroundJobs.get(i);
-                    if (p.isAlive()) {
-                        System.out.println("[" + (i + 1) + "] " + p.pid());
+                    Job job = backgroundJobs.get(i);
+                    if (job.process.isAlive()) {
+                        System.out.println("[" + (i + 1) + "] Running " + job.command);
                     }
                 }
             }
@@ -52,33 +63,7 @@ public class Main {
                     output = String.join(" ", tokens.subList(1, cutIndex));
                 }
 
-                int stdoutIndex = findToken(tokens, ">", "1>");
-                int appendStdoutIndex = findToken(tokens, ">>", "1>>");
-                int stderrIndex = findToken(tokens, "2>");
-                int appendStderrIndex = findToken(tokens, "2>>");
-
-                if (stdoutIndex != -1 || appendStdoutIndex != -1) {
-                    int idx = stdoutIndex != -1 ? stdoutIndex : appendStdoutIndex;
-                    boolean append = appendStdoutIndex != -1;
-
-                    File outFile = new File(tokens.get(idx + 1));
-                    File parent = outFile.getParentFile();
-                    if (parent != null) parent.mkdirs();
-
-                    try (FileWriter writer = new FileWriter(outFile, append)) {
-                        writer.write(output + System.lineSeparator());
-                    }
-                } else {
-                    System.out.println(output);
-                }
-
-                if (stderrIndex != -1 || appendStderrIndex != -1) {
-                    int idx = stderrIndex != -1 ? stderrIndex : appendStderrIndex;
-                    File errFile = new File(tokens.get(idx + 1));
-                    File parent = errFile.getParentFile();
-                    if (parent != null) parent.mkdirs();
-                    if (!errFile.exists()) errFile.createNewFile();
-                }
+                System.out.println(output);
             }
 
             else if (command.equals("pwd")) {
@@ -117,36 +102,6 @@ public class Main {
             }
 
             else {
-                int stdoutIndex = findToken(tokens, ">", "1>");
-                int appendStdoutIndex = findToken(tokens, ">>", "1>>");
-                int stderrIndex = findToken(tokens, "2>");
-                int appendStderrIndex = findToken(tokens, "2>>");
-
-                int cutIndex = tokens.size();
-                for (int idx : new int[]{stdoutIndex, appendStdoutIndex, stderrIndex, appendStderrIndex}) {
-                    if (idx != -1) cutIndex = Math.min(cutIndex, idx);
-                }
-
-                List<String> cmdTokens = new ArrayList<>(tokens.subList(0, cutIndex));
-
-                File stdoutFile = null;
-                File stderrFile = null;
-                boolean appendStdout = false;
-                boolean appendStderr = false;
-
-                if (stdoutIndex != -1 || appendStdoutIndex != -1) {
-                    int idx = stdoutIndex != -1 ? stdoutIndex : appendStdoutIndex;
-                    appendStdout = appendStdoutIndex != -1;
-                    stdoutFile = new File(tokens.get(idx + 1));
-                }
-
-                if (stderrIndex != -1 || appendStderrIndex != -1) {
-                    int idx = stderrIndex != -1 ? stderrIndex : appendStderrIndex;
-                    appendStderr = appendStderrIndex != -1;
-                    stderrFile = new File(tokens.get(idx + 1));
-                }
-
-                command = cmdTokens.get(0);
                 String executablePath;
                 boolean directExecutable = false;
 
@@ -158,30 +113,18 @@ public class Main {
                 }
 
                 if (executablePath != null) {
-                    List<String> processArgs = new ArrayList<>(cmdTokens);
+                    List<String> processArgs = new ArrayList<>(tokens);
                     if (directExecutable) processArgs.set(0, executablePath);
 
                     ProcessBuilder pb = new ProcessBuilder(processArgs);
                     pb.directory(new File(currentDirectory));
-
-                    if (stdoutFile != null) {
-                        if (appendStdout) pb.redirectOutput(ProcessBuilder.Redirect.appendTo(stdoutFile));
-                        else pb.redirectOutput(stdoutFile);
-                    } else {
-                        pb.redirectOutput(ProcessBuilder.Redirect.INHERIT);
-                    }
-
-                    if (stderrFile != null) {
-                        if (appendStderr) pb.redirectError(ProcessBuilder.Redirect.appendTo(stderrFile));
-                        else pb.redirectError(stderrFile);
-                    } else {
-                        pb.redirectError(ProcessBuilder.Redirect.INHERIT);
-                    }
+                    pb.inheritIO();
 
                     Process process = pb.start();
 
                     if (runInBackground) {
-                        backgroundJobs.add(process);
+                        String jobCmd = String.join(" ", tokens) + " &";
+                        backgroundJobs.add(new Job(process, jobCmd));
                         System.out.println("[" + backgroundJobs.size() + "] " + process.pid());
                     } else {
                         process.waitFor();
@@ -191,19 +134,11 @@ public class Main {
                 }
             }
         }
+
         sc.close();
     }
 
-    static int findToken(List<String> tokens, String... options) {
-        for (int i = 0; i < tokens.size(); i++) {
-            for (String option : options) {
-                if (tokens.get(i).equals(option)) return i;
-            }
-        }
-        return -1;
-    }
-
-    public static List<String> parseCommand(String input) {
+    static List<String> parseCommand(String input) {
         List<String> tokens = new ArrayList<>();
         StringBuilder current = new StringBuilder();
         boolean inSingleQuote = false;
@@ -235,12 +170,12 @@ public class Main {
         return tokens;
     }
 
-    public static boolean isDirectExecutable(String cmd) {
+    static boolean isDirectExecutable(String cmd) {
         File file = new File(cmd);
         return file.exists() && file.canExecute();
     }
 
-    public static String findExecutable(String cmd) {
+    static String findExecutable(String cmd) {
         String path = System.getenv("PATH");
         String[] directories = path.split(":");
 
