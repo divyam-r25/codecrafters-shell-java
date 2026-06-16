@@ -1,5 +1,5 @@
 import java.util.*;
-import java.io.File;
+import java.io.*;
 
 public class Main {
 
@@ -26,10 +26,21 @@ public class Main {
             }
 
             else if (command.equals("echo")) {
-                if (tokens.size() > 1) {
-                    System.out.println(String.join(" ", tokens.subList(1, tokens.size())));
+                String output = tokens.size() > 1
+                        ? String.join(" ", tokens.subList(1, tokens.size()))
+                        : "";
+
+                int redirectIndex = tokens.indexOf(">");
+
+                if (redirectIndex != -1 && redirectIndex + 1 < tokens.size()) {
+                    String fileName = tokens.get(redirectIndex + 1);
+                    File outFile = new File(currentDirectory, fileName);
+
+                    try (FileWriter writer = new FileWriter(outFile)) {
+                        writer.write(output + System.lineSeparator());
+                    }
                 } else {
-                    System.out.println();
+                    System.out.println(output);
                 }
             }
 
@@ -78,31 +89,49 @@ public class Main {
             }
 
             else {
+                int redirectIndex = tokens.indexOf(">");
+                File redirectFile = null;
+                List<String> cmdTokens = new ArrayList<>(tokens);
+
+                if (redirectIndex != -1 && redirectIndex + 1 < tokens.size()) {
+                    redirectFile = new File(currentDirectory, tokens.get(redirectIndex + 1));
+                    cmdTokens = new ArrayList<>(tokens.subList(0, redirectIndex));
+                }
+
                 String executablePath = null;
                 boolean directExecutable = false;
 
-                if (isDirectExecutable(command)) {
-                    executablePath = command;
-                    directExecutable = true;
-                } else {
-                    executablePath = findExecutable(command);
-                }
+                if (!cmdTokens.isEmpty()) {
+                    command = cmdTokens.get(0);
 
-                if (executablePath != null) {
-                    List<String> cmdList = new ArrayList<>(tokens);
-
-                    if (directExecutable) {
-                        cmdList.set(0, executablePath);
+                    if (isDirectExecutable(command)) {
+                        executablePath = command;
+                        directExecutable = true;
+                    } else {
+                        executablePath = findExecutable(command);
                     }
 
-                    ProcessBuilder pb = new ProcessBuilder(cmdList);
-                    pb.directory(new File(currentDirectory));
-                    pb.inheritIO();
+                    if (executablePath != null) {
+                        List<String> processArgs = new ArrayList<>(cmdTokens);
 
-                    Process process = pb.start();
-                    process.waitFor();
-                } else {
-                    System.out.println(command + ": command not found");
+                        if (directExecutable) {
+                            processArgs.set(0, executablePath);
+                        }
+
+                        ProcessBuilder pb = new ProcessBuilder(processArgs);
+                        pb.directory(new File(currentDirectory));
+
+                        if (redirectFile != null) {
+                            pb.redirectOutput(redirectFile);
+                        } else {
+                            pb.inheritIO();
+                        }
+
+                        Process process = pb.start();
+                        process.waitFor();
+                    } else {
+                        System.out.println(command + ": command not found");
+                    }
                 }
             }
         }
