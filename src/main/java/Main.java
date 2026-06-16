@@ -25,10 +25,17 @@ public class Main {
 
             else if (command.equals("echo")) {
                 int stdoutIndex = findStdoutRedirect(tokens);
-                String output;
+                int stderrIndex = findStderrRedirect(tokens);
+
+                int cutIndex = tokens.size();
+                if (stdoutIndex != -1) cutIndex = Math.min(cutIndex, stdoutIndex);
+                if (stderrIndex != -1) cutIndex = Math.min(cutIndex, stderrIndex);
+
+                String output = cutIndex > 1
+                        ? String.join(" ", tokens.subList(1, cutIndex))
+                        : "";
 
                 if (stdoutIndex != -1) {
-                    output = String.join(" ", tokens.subList(1, stdoutIndex));
                     String fileName = tokens.get(stdoutIndex + 1);
                     File outFile = new File(fileName);
 
@@ -39,9 +46,7 @@ public class Main {
                         writer.write(output + System.lineSeparator());
                     }
                 } else {
-                    output = tokens.size() > 1
-                            ? String.join(" ", tokens.subList(1, tokens.size()))
-                            : "";
+                    // 2> should NOT affect echo stdout
                     System.out.println(output);
                 }
             }
