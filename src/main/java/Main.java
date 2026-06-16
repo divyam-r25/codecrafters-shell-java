@@ -75,9 +75,7 @@ public class Main {
                 String executablePath = findExecutable(command);
 
                 if (executablePath != null) {
-                    List<String> cmdList = new ArrayList<>(tokens);
-
-                    ProcessBuilder pb = new ProcessBuilder(cmdList);
+                    ProcessBuilder pb = new ProcessBuilder(tokens);
                     pb.directory(new File(currentDirectory));
                     pb.inheritIO();
 
@@ -95,15 +93,20 @@ public class Main {
     public static List<String> parseCommand(String input) {
         List<String> tokens = new ArrayList<>();
         StringBuilder current = new StringBuilder();
+
         boolean inSingleQuote = false;
+        boolean inDoubleQuote = false;
 
         for (int i = 0; i < input.length(); i++) {
             char c = input.charAt(i);
 
-            if (c == '\'') {
+            if (c == '\'' && !inDoubleQuote) {
                 inSingleQuote = !inSingleQuote;
             }
-            else if (c == ' ' && !inSingleQuote) {
+            else if (c == '"' && !inSingleQuote) {
+                inDoubleQuote = !inDoubleQuote;
+            }
+            else if (c == ' ' && !inSingleQuote && !inDoubleQuote) {
                 if (current.length() > 0) {
                     tokens.add(current.toString());
                     current.setLength(0);
