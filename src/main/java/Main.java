@@ -42,6 +42,21 @@ public class Main {
                 tokens.remove(tokens.size() - 1);
             }
 
+            int pipeIndex = -1;
+            for (int i = 0; i < tokens.size(); i++) {
+                if (tokens.get(i).equals("|")) {
+                    pipeIndex = i;
+                    break;
+                }
+            }
+
+            if (pipeIndex != -1) {
+                List<String> command1Tokens = new ArrayList<>(tokens.subList(0, pipeIndex));
+                List<String> command2Tokens = new ArrayList<>(tokens.subList(pipeIndex + 1, tokens.size()));
+                executePipeline(command1Tokens, command2Tokens, runInBackground);
+                continue;
+            }
+
             String command = tokens.get(0);
 
             if (command.equals("exit")) {
@@ -463,6 +478,89 @@ public class Main {
             } else {
                 i++;
             }
+        }
+    }
+
+    static void executePipeline(List<String> command1Tokens, List<String> command2Tokens, boolean runInBackground) throws Exception {
+        String cmd1 = command1Tokens.get(0);
+        String cmd2 = command2Tokens.get(0);
+
+        String exec1 = null;
+        boolean direct1 = false;
+
+        if (isDirectExecutable(cmd1)) {
+            exec1 = cmd1;
+            direct1 = true;
+        } else {
+            exec1 = findExecutable(cmd1);
+        }
+
+        String exec2 = null;
+        boolean direct2 = false;
+
+        if (isDirectExecutable(cmd2)) {
+            exec2 = cmd2;
+            direct2 = true;
+        } else {
+            exec2 = findExecutable(cmd2);
+        }
+
+        if (exec1 == null || exec2 == null) {
+            if (exec1 == null) {
+                System.out.println(cmd1 + ": command not found");
+            }
+            if (exec2 == null) {
+                System.out.println(cmd2 + ": command not found");
+            }
+            return;
+        }
+
+        List<String> args1 = new ArrayList<>(command1Tokens);
+        if (direct1)
+            args1.set(0, exec1);
+
+        List<String> args2 = new ArrayList<>(command2Tokens);
+        if (direct2)
+            args2.set(0, exec2);
+
+        ProcessBuilder pb1 = new ProcessBuilder(args1);
+        pb1.directory(new File(currentDirectory));
+        pb1.redirectError(ProcessBuilder.Redirect.INHERIT);
+
+        ProcessBuilder pb2 = new ProcessBuilder(args2);
+        pb2.directory(new File(currentDirectory));
+        pb2.redirectError(ProcessBuilder.Redirect.INHERIT);
+
+        Process process1 = pb1.start();
+        Process process2 = pb2.start();
+
+        Thread pipeThread = new Thread(() -> {
+            try {
+                InputStream input = process1.getInputStream();
+                OutputStream output = process2.getOutputStream();
+                byte[] buffer = new byte[1024];
+                int bytesRead;
+                while ((bytesRead = input.read(buffer)) != -1) {
+                    output.write(buffer, 0, bytesRead);
+                }
+                output.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        });
+        pipeThread.start();
+
+        if (runInBackground) {
+            String jobCmd = String.join(" ", command1Tokens) + " | " + String.join(" ", command2Tokens) + " &";
+            int jobId = getNextJobId();
+            backgroundJobs.add(new Job(jobId, process2, jobCmd));
+            System.out.printf("[%d] %d%n",
+                    jobId,
+                    process2.pid());
+        } else {
+            process1.waitFor();
+            process2.waitFor();
+            pipeThread.join();
         }
     }
 }
