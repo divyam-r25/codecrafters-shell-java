@@ -137,14 +137,29 @@ public class Main {
             }
 
             else if (command.equals("jobs")) {
-                for (int i = 0; i < backgroundJobs.size(); i++) {
-                    Job job = backgroundJobs.get(i);
+                List<Integer> aliveJobs = new ArrayList<>();
 
-                    if (job.process.isAlive()) {
-                        System.out.printf("[%d]+  Running                 %s%n",
-                                i + 1,
-                                job.command);
+                for (int i = 0; i < backgroundJobs.size(); i++) {
+                    if (backgroundJobs.get(i).process.isAlive()) {
+                        aliveJobs.add(i);
                     }
+                }
+
+                for (int j = 0; j < aliveJobs.size(); j++) {
+                    int idx = aliveJobs.get(j);
+                    Job job = backgroundJobs.get(idx);
+
+                    String marker = " ";
+                    if (j == aliveJobs.size() - 1) {
+                        marker = "+";
+                    } else if (j == aliveJobs.size() - 2) {
+                        marker = "-";
+                    }
+
+                    System.out.printf("[%d]%s  Running                 %s%n",
+                            idx + 1,
+                            marker,
+                            job.command);
                 }
             }
 
