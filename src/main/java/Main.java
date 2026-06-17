@@ -534,7 +534,7 @@ public class Main {
         Process process1 = pb1.start();
         Process process2 = pb2.start();
 
-        Thread pipeThread = new Thread(() -> {
+        Thread pipeInputThread = new Thread(() -> {
             try {
                 InputStream input = process1.getInputStream();
                 OutputStream output = process2.getOutputStream();
@@ -548,7 +548,22 @@ public class Main {
                 e.printStackTrace();
             }
         });
-        pipeThread.start();
+        pipeInputThread.start();
+
+        Thread pipeOutputThread = new Thread(() -> {
+            try {
+                InputStream input = process2.getInputStream();
+                byte[] buffer = new byte[1024];
+                int bytesRead;
+                while ((bytesRead = input.read(buffer)) != -1) {
+                    System.out.write(buffer, 0, bytesRead);
+                    System.out.flush();
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        });
+        pipeOutputThread.start();
 
         if (runInBackground) {
             String jobCmd = String.join(" ", command1Tokens) + " | " + String.join(" ", command2Tokens) + " &";
@@ -560,7 +575,8 @@ public class Main {
         } else {
             process1.waitFor();
             process2.waitFor();
-            pipeThread.join();
+            pipeInputThread.join();
+            pipeOutputThread.join();
         }
     }
 }
