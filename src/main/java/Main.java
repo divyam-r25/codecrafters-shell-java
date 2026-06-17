@@ -6,16 +6,19 @@ public class Main {
     static String currentDirectory = System.getProperty("user.dir");
 
     static class Job {
+        int id;
         Process process;
         String command;
 
-        Job(Process process, String command) {
+        Job(int id, Process process, String command) {
+            this.id = id;
             this.process = process;
             this.command = command;
         }
     }
 
     static List<Job> backgroundJobs = new ArrayList<>();
+    static int nextJobId = 1;
 
     public static void main(String[] args) throws Exception {
         Scanner sc = new Scanner(System.in);
@@ -139,14 +142,7 @@ public class Main {
             }
 
             else if (command.equals("jobs")) {
-                List<Integer> runningJobs = new ArrayList<>();
-
-                for (int i = 0; i < backgroundJobs.size(); i++) {
-                    Job job = backgroundJobs.get(i);
-                    if (job != null && job.process.isAlive()) {
-                        runningJobs.add(i);
-                    }
-                }
+                List<Job> runningJobs = new ArrayList<>();
 
                 for (int i = 0; i < backgroundJobs.size();) {
                     Job job = backgroundJobs.get(i);
@@ -158,25 +154,30 @@ public class Main {
                                 cmd = cmd.substring(0, cmd.length() - 2);
                             }
 
-                            System.out.printf("[%d]+  Done                 %s%n", i + 1, cmd);
+                            System.out.printf("[%d]+  Done                 %s%n", job.id, cmd);
                         }
 
                         backgroundJobs.remove(i);
                     } else {
-                        String marker = " ";
-                        int runningIndex = runningJobs.indexOf(i);
-                        if (runningIndex == runningJobs.size() - 1) {
-                            marker = "+";
-                        } else if (runningIndex == runningJobs.size() - 2) {
-                            marker = "-";
-                        }
-
-                        System.out.printf("[%d]%s  Running                 %s%n",
-                            i + 1,
-                            marker,
-                            job.command);
+                        runningJobs.add(job);
                         i++;
                     }
+                }
+
+                for (int i = 0; i < runningJobs.size(); i++) {
+                    Job job = runningJobs.get(i);
+
+                    String marker = " ";
+                    if (i == runningJobs.size() - 1) {
+                        marker = "+";
+                    } else if (i == runningJobs.size() - 2) {
+                        marker = "-";
+                    }
+
+                    System.out.printf("[%d]%s  Running                 %s%n",
+                            job.id,
+                            marker,
+                            job.command);
                 }
             }
 
@@ -263,9 +264,9 @@ public class Main {
 
                     if (runInBackground) {
                         String jobCmd = String.join(" ", commandTokens) + " &";
-                        backgroundJobs.add(new Job(process, jobCmd));
+                        backgroundJobs.add(new Job(nextJobId++, process, jobCmd));
                         System.out.printf("[%d] %d%n",
-                                backgroundJobs.size(),
+                                backgroundJobs.get(backgroundJobs.size() - 1).id,
                                 process.pid());
                     } else {
                         process.waitFor();
@@ -440,7 +441,7 @@ public class Main {
                 }
 
                 System.out.printf("[%d]+  Done                 %s%n",
-                        i + 1,
+                    job.id,
                         cmd);
                 backgroundJobs.remove(i);
                 i--;
