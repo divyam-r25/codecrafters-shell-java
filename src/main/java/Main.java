@@ -19,6 +19,7 @@ public class Main {
 
     static List<Job> backgroundJobs = new ArrayList<>();
     static int nextJobId = 1;
+    static TreeSet<Integer> availableJobIds = new TreeSet<>();
 
     public static void main(String[] args) throws Exception {
         Scanner sc = new Scanner(System.in);
@@ -168,6 +169,7 @@ public class Main {
                                 job.id,
                                 marker,
                                 cmd);
+                        recycleJobId(job.id);
                         backgroundJobs.remove(i);
                     }
                 }
@@ -256,9 +258,10 @@ public class Main {
 
                     if (runInBackground) {
                         String jobCmd = String.join(" ", commandTokens) + " &";
-                        backgroundJobs.add(new Job(nextJobId++, process, jobCmd));
+                        int jobId = getNextJobId();
+                        backgroundJobs.add(new Job(jobId, process, jobCmd));
                         System.out.printf("[%d] %d%n",
-                                backgroundJobs.get(backgroundJobs.size() - 1).id,
+                                jobId,
                                 process.pid());
                     } else {
                         process.waitFor();
@@ -423,6 +426,17 @@ public class Main {
         return System.getProperty("user.home");
     }
 
+    static int getNextJobId() {
+        if (!availableJobIds.isEmpty()) {
+            return availableJobIds.pollFirst();
+        }
+        return nextJobId++;
+    }
+
+    static void recycleJobId(int jobId) {
+        availableJobIds.add(jobId);
+    }
+
     static void reapFinishedJobs() {
         for (int i = 0; i < backgroundJobs.size();) {
             Job job = backgroundJobs.get(i);
@@ -444,6 +458,7 @@ public class Main {
                         job.id,
                         marker,
                         cmd);
+                recycleJobId(job.id);
                 backgroundJobs.remove(i);
             } else {
                 i++;
