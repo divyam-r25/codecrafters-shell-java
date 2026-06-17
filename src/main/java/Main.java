@@ -21,6 +21,8 @@ public class Main {
         Scanner sc = new Scanner(System.in);
 
         while (true) {
+            reapFinishedJobs();
+
             System.out.print("$ ");
             System.out.flush();
 
@@ -137,24 +139,24 @@ public class Main {
             }
 
             else if (command.equals("jobs")) {
-                List<Integer> aliveJobs = new ArrayList<>();
+                List<Integer> alive = new ArrayList<>();
 
                 for (int i = 0; i < backgroundJobs.size(); i++) {
-                    if (backgroundJobs.get(i).process.isAlive()) {
-                        aliveJobs.add(i);
+                    Job job = backgroundJobs.get(i);
+                    if (job != null && job.process.isAlive()) {
+                        alive.add(i);
                     }
                 }
 
-                for (int j = 0; j < aliveJobs.size(); j++) {
-                    int idx = aliveJobs.get(j);
+                for (int j = 0; j < alive.size(); j++) {
+                    int idx = alive.get(j);
                     Job job = backgroundJobs.get(idx);
 
                     String marker = " ";
-                    if (j == aliveJobs.size() - 1) {
+                    if (j == alive.size() - 1)
                         marker = "+";
-                    } else if (j == aliveJobs.size() - 2) {
+                    else if (j == alive.size() - 2)
                         marker = "-";
-                    }
 
                     System.out.printf("[%d]%s  Running                 %s%n",
                             idx + 1,
