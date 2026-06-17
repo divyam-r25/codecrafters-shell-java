@@ -140,6 +140,8 @@ public class Main {
             }
 
             else if (command.equals("jobs")) {
+                reapFinishedJobs();
+
                 for (int i = 0; i < backgroundJobs.size(); i++) {
                     Job job = backgroundJobs.get(i);
 
@@ -157,8 +159,6 @@ public class Main {
                             job.command);
                     }
                 }
-
-                reapFinishedJobs();
             }
 
             else {
