@@ -267,6 +267,32 @@ public class Main {
                 continue;
             }
 
+            if (c == '\\') {
+                if (inSingle) {
+                    current.append(c);
+                    continue;
+                }
+
+                if (i + 1 < input.length()) {
+                    char next = input.charAt(i + 1);
+
+                    if (!inDouble) {
+                        current.append(next);
+                        i++;
+                        continue;
+                    } else {
+                        if (next == '\\' || next == '"' || next == '$') {
+                            current.append(next);
+                            i++;
+                            continue;
+                        } else {
+                            current.append('\\');
+                            continue;
+                        }
+                    }
+                }
+            }
+
             if (!inSingle && !inDouble) {
                 if (current.length() == 0) {
                     if (c == '>') {
@@ -279,9 +305,9 @@ public class Main {
                         continue;
                     }
 
-                    if ((c == '1' || c == '2') &&
-                            i + 1 < input.length() &&
-                            input.charAt(i + 1) == '>') {
+                    if ((c == '1' || c == '2')
+                            && i + 1 < input.length()
+                            && input.charAt(i + 1) == '>') {
 
                         String token = "" + c + ">";
                         i++;
