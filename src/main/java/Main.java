@@ -373,4 +373,18 @@ public class Main {
         }
         return null;
     }
+
+    static void reapFinishedJobs() {
+        for (int i = 0; i < backgroundJobs.size(); i++) {
+            Job job = backgroundJobs.get(i);
+
+            if (job != null && !job.process.isAlive()) {
+                System.out.printf("[%d]+  Done                    %s%n",
+                        i + 1,
+                        job.command);
+                backgroundJobs.set(i, null);
+                break;
+            }
+        }
+    }
 }
