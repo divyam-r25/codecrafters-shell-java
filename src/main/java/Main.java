@@ -71,24 +71,30 @@ public class Main {
 
                 if (redirectOp == null) {
                     System.out.println(output);
-                } else {
-                    if (redirectOp.equals(">") || redirectOp.equals("1>") ||
-                            redirectOp.equals(">>") || redirectOp.equals("1>>")) {
+                } else if (redirectOp.equals(">") || redirectOp.equals("1>")
+                        || redirectOp.equals(">>") || redirectOp.equals("1>>")) {
 
-                        File file = new File(redirectFile);
-                        File parent = file.getParentFile();
-                        if (parent != null)
-                            parent.mkdirs();
+                    File file = new File(redirectFile);
+                    File parent = file.getParentFile();
+                    if (parent != null)
+                        parent.mkdirs();
 
-                        boolean append = redirectOp.equals(">>") || redirectOp.equals("1>>");
+                    boolean append = redirectOp.equals(">>") || redirectOp.equals("1>>");
 
-                        FileWriter fw = new FileWriter(file, append);
-                        fw.write(output + System.lineSeparator());
-                        fw.close();
-                    } else {
-                        // echo has no stderr
-                        System.out.println(output);
-                    }
+                    FileWriter fw = new FileWriter(file, append);
+                    fw.write(output + System.lineSeparator());
+                    fw.close();
+                } else if (redirectOp.equals("2>") || redirectOp.equals("2>>")) {
+                    System.out.println(output);
+
+                    File file = new File(redirectFile);
+                    File parent = file.getParentFile();
+                    if (parent != null)
+                        parent.mkdirs();
+
+                    boolean append = redirectOp.equals("2>>");
+                    FileWriter fw = new FileWriter(file, append);
+                    fw.close();
                 }
             }
 
