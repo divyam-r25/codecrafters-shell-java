@@ -24,6 +24,8 @@ public class Main {
         Scanner sc = new Scanner(System.in);
 
         while (true) {
+            reapFinishedJobs();
+
             System.out.print("$ ");
             System.out.flush();
 
@@ -140,8 +142,6 @@ public class Main {
             }
 
             else if (command.equals("jobs")) {
-                reapFinishedJobs();
-
                 for (int i = 0; i < backgroundJobs.size(); i++) {
                     Job job = backgroundJobs.get(i);
 
@@ -159,6 +159,8 @@ public class Main {
                             job.command);
                     }
                 }
+
+                reapFinishedJobs();
             }
 
             else {
@@ -256,9 +258,6 @@ public class Main {
                 }
             }
 
-            if (!command.equals("jobs")) {
-                reapFinishedJobs();
-            }
         }
 
         sc.close();
