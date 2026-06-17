@@ -109,7 +109,7 @@ public class Main {
                 File dir;
 
                 if (path.equals("~"))
-                    dir = new File(System.getenv("HOME"));
+                    dir = new File(homeDirectory());
                 else if (path.startsWith("/"))
                     dir = new File(path);
                 else
@@ -139,29 +139,26 @@ public class Main {
             }
 
             else if (command.equals("jobs")) {
-                List<Integer> alive = new ArrayList<>();
-
-                for (int i = 0; i < backgroundJobs.size(); i++) {
+                for (int i = 0; i < backgroundJobs.size();) {
                     Job job = backgroundJobs.get(i);
-                    if (job != null && job.process.isAlive()) {
-                        alive.add(i);
+
+                    if (job == null || !job.process.isAlive()) {
+                        if (job != null) {
+                            String cmd = job.command;
+                            if (cmd.endsWith(" &")) {
+                                cmd = cmd.substring(0, cmd.length() - 2);
+                            }
+
+                            System.out.printf("[%d]+  Done                 %s%n", i + 1, cmd);
+                        }
+
+                        backgroundJobs.remove(i);
+                    } else {
+                        System.out.printf("[%d]+  Running               %s%n",
+                                i + 1,
+                                job.command);
+                        i++;
                     }
-                }
-
-                for (int j = 0; j < alive.size(); j++) {
-                    int idx = alive.get(j);
-                    Job job = backgroundJobs.get(idx);
-
-                    String marker = " ";
-                    if (j == alive.size() - 1)
-                        marker = "+";
-                    else if (j == alive.size() - 2)
-                        marker = "-";
-
-                    System.out.printf("[%d]%s  Running                 %s%n",
-                            idx + 1,
-                            marker,
-                            job.command);
                 }
             }
 
@@ -360,20 +357,58 @@ public class Main {
 
     static boolean isDirectExecutable(String cmd) {
         File file = new File(cmd);
-        return file.exists() && file.canExecute();
+        if (file.exists() && file.canExecute()) {
+            return true;
+        }
+
+        if (isWindows() && !cmd.contains(".")) {
+            for (String extension : new String[] {".exe", ".cmd", ".bat"}) {
+                File withExtension = new File(cmd + extension);
+                if (withExtension.exists() && withExtension.canExecute()) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     static String findExecutable(String cmd) {
         String path = System.getenv("PATH");
-        String[] directories = path.split(":");
+        if (path == null || path.isEmpty()) {
+            return null;
+        }
+
+        String[] directories = path.split(java.io.File.pathSeparator);
+        String[] extensions = isWindows() ? new String[] {"", ".exe", ".cmd", ".bat"} : new String[] {""};
 
         for (String dir : directories) {
-            File file = new File(dir, cmd);
-            if (file.exists() && file.canExecute()) {
-                return file.getAbsolutePath();
+            for (String extension : extensions) {
+                File file = new File(dir, cmd + extension);
+                if (file.exists() && file.canExecute()) {
+                    return file.getAbsolutePath();
+                }
             }
         }
         return null;
+    }
+
+    static boolean isWindows() {
+        return System.getProperty("os.name").toLowerCase(Locale.ROOT).contains("win");
+    }
+
+    static String homeDirectory() {
+        String home = System.getenv("HOME");
+        if (home != null && !home.isEmpty()) {
+            return home;
+        }
+
+        home = System.getenv("USERPROFILE");
+        if (home != null && !home.isEmpty()) {
+            return home;
+        }
+
+        return System.getProperty("user.home");
     }
 
     static void reapFinishedJobs() {
@@ -381,11 +416,16 @@ public class Main {
             Job job = backgroundJobs.get(i);
 
             if (job != null && !job.process.isAlive()) {
-                System.out.printf("[%d]+  Done                    %s%n",
+                String cmd = job.command;
+                if (cmd.endsWith(" &")) {
+                    cmd = cmd.substring(0, cmd.length() - 2);
+                }
+
+                System.out.printf("[%d]+  Done                 %s%n",
                         i + 1,
-                        job.command);
-                backgroundJobs.set(i, null);
-                break;
+                        cmd);
+                backgroundJobs.remove(i);
+                i--;
             }
         }
     }
