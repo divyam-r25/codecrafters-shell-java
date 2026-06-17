@@ -24,16 +24,16 @@ public class Main {
         Scanner sc = new Scanner(System.in);
 
         while (true) {
-            reapFinishedJobs();
-
             System.out.print("$ ");
             System.out.flush();
 
             String originalUser = sc.nextLine();
             List<String> tokens = parseCommand(originalUser);
 
-            if (tokens.isEmpty())
+            if (tokens.isEmpty()) {
+                reapFinishedJobs();
                 continue;
+            }
 
             boolean runInBackground = false;
             if (tokens.get(tokens.size() - 1).equals("&")) {
@@ -142,8 +142,6 @@ public class Main {
             }
 
             else if (command.equals("jobs")) {
-                reapFinishedJobs();
-
                 for (int i = 0; i < backgroundJobs.size(); i++) {
                     Job job = backgroundJobs.get(i);
 
@@ -257,6 +255,8 @@ public class Main {
                     System.out.println(command + ": command not found");
                 }
             }
+
+            reapFinishedJobs();
         }
 
         sc.close();
