@@ -27,7 +27,8 @@ public class Main {
             String originalUser = sc.nextLine();
             List<String> tokens = parseCommand(originalUser);
 
-            if (tokens.isEmpty()) continue;
+            if (tokens.isEmpty())
+                continue;
 
             boolean runInBackground = false;
             if (tokens.get(tokens.size() - 1).equals("&")) {
@@ -43,10 +44,24 @@ public class Main {
 
             else if (command.equals("echo")) {
                 int cutIndex = tokens.size();
+                String redirectOp = null;
+                String redirectFile = null;
 
-                for (String op : Arrays.asList(">", "1>", ">>", "1>>", "2>", "2>>")) {
-                    int idx = tokens.indexOf(op);
-                    if (idx != -1) cutIndex = Math.min(cutIndex, idx);
+                for (int i = 0; i < tokens.size(); i++) {
+                    String t = tokens.get(i);
+
+                    if (t.equals(">") || t.equals("1>") ||
+                            t.equals(">>") || t.equals("1>>") ||
+                            t.equals("2>") || t.equals("2>>")) {
+
+                        cutIndex = i;
+                        redirectOp = t;
+
+                        if (i + 1 < tokens.size()) {
+                            redirectFile = tokens.get(i + 1);
+                        }
+                        break;
+                    }
                 }
 
                 String output = "";
@@ -54,7 +69,27 @@ public class Main {
                     output = String.join(" ", tokens.subList(1, cutIndex));
                 }
 
-                System.out.println(output);
+                if (redirectOp == null) {
+                    System.out.println(output);
+                } else {
+                    if (redirectOp.equals(">") || redirectOp.equals("1>") ||
+                            redirectOp.equals(">>") || redirectOp.equals("1>>")) {
+
+                        File file = new File(redirectFile);
+                        File parent = file.getParentFile();
+                        if (parent != null)
+                            parent.mkdirs();
+
+                        boolean append = redirectOp.equals(">>") || redirectOp.equals("1>>");
+
+                        FileWriter fw = new FileWriter(file, append);
+                        fw.write(output + System.lineSeparator());
+                        fw.close();
+                    } else {
+                        // echo has no stderr
+                        System.out.println(output);
+                    }
+                }
             }
 
             else if (command.equals("pwd")) {
@@ -65,9 +100,12 @@ public class Main {
                 String path = tokens.size() > 1 ? tokens.get(1) : "";
                 File dir;
 
-                if (path.equals("~")) dir = new File(System.getenv("HOME"));
-                else if (path.startsWith("/")) dir = new File(path);
-                else dir = new File(currentDirectory, path);
+                if (path.equals("~"))
+                    dir = new File(System.getenv("HOME"));
+                else if (path.startsWith("/"))
+                    dir = new File(path);
+                else
+                    dir = new File(currentDirectory, path);
 
                 if (dir.exists() && dir.isDirectory()) {
                     currentDirectory = dir.getCanonicalPath();
@@ -139,7 +177,8 @@ public class Main {
                     redirectFile = new File(tokens.get(redirectIndex + 1));
 
                     File parent = redirectFile.getParentFile();
-                    if (parent != null) parent.mkdirs();
+                    if (parent != null)
+                        parent.mkdirs();
                 } else {
                     commandTokens = new ArrayList<>(tokens);
                 }
@@ -158,7 +197,8 @@ public class Main {
 
                 if (executablePath != null) {
                     List<String> processArgs = new ArrayList<>(commandTokens);
-                    if (directExecutable) processArgs.set(0, executablePath);
+                    if (directExecutable)
+                        processArgs.set(0, executablePath);
 
                     ProcessBuilder pb = new ProcessBuilder(processArgs);
                     pb.directory(new File(currentDirectory));
@@ -234,8 +274,8 @@ public class Main {
                     }
 
                     if ((c == '1' || c == '2') &&
-                        i + 1 < input.length() &&
-                        input.charAt(i + 1) == '>') {
+                            i + 1 < input.length() &&
+                            input.charAt(i + 1) == '>') {
 
                         String token = "" + c + ">";
                         i++;
