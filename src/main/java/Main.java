@@ -139,6 +139,15 @@ public class Main {
             }
 
             else if (command.equals("jobs")) {
+                List<Integer> runningJobs = new ArrayList<>();
+
+                for (int i = 0; i < backgroundJobs.size(); i++) {
+                    Job job = backgroundJobs.get(i);
+                    if (job != null && job.process.isAlive()) {
+                        runningJobs.add(i);
+                    }
+                }
+
                 for (int i = 0; i < backgroundJobs.size();) {
                     Job job = backgroundJobs.get(i);
 
@@ -154,9 +163,18 @@ public class Main {
 
                         backgroundJobs.remove(i);
                     } else {
-                        System.out.printf("[%d]+  Running               %s%n",
-                                i + 1,
-                                job.command);
+                        String marker = " ";
+                        int runningIndex = runningJobs.indexOf(i);
+                        if (runningIndex == runningJobs.size() - 1) {
+                            marker = "+";
+                        } else if (runningIndex == runningJobs.size() - 2) {
+                            marker = "-";
+                        }
+
+                        System.out.printf("[%d]%s  Running                 %s%n",
+                            i + 1,
+                            marker,
+                            job.command);
                         i++;
                     }
                 }
