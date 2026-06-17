@@ -152,20 +152,13 @@ public class Main {
                         marker = "-";
                     }
 
-                    String state = job.process.isAlive() ? "Running" : "Done";
-                    String cmd = job.command;
-                    if (!job.process.isAlive() && cmd.endsWith(" &")) {
-                        cmd = cmd.substring(0, cmd.length() - 2);
-                    }
-
-                        System.out.printf("[%d]%s  %s                 %s%n",
+                    if (job.process.isAlive()) {
+                        System.out.printf("[%d]%s  Running                 %s%n",
                             job.id,
                             marker,
-                            state,
-                            cmd);
+                            job.command);
+                    }
                 }
-
-                backgroundJobs.removeIf(job -> job == null || !job.process.isAlive());
             }
 
             else {
@@ -418,6 +411,22 @@ public class Main {
     }
 
     static void reapFinishedJobs() {
-        // Leave finished jobs in the list so `jobs` can report and reap them in order.
+        for (int i = 0; i < backgroundJobs.size();) {
+            Job job = backgroundJobs.get(i);
+
+            if (job != null && !job.process.isAlive()) {
+                String cmd = job.command;
+                if (cmd.endsWith(" &")) {
+                    cmd = cmd.substring(0, cmd.length() - 2);
+                }
+
+                System.out.printf("[%d]+  Done                 %s%n",
+                        job.id,
+                        cmd);
+                backgroundJobs.remove(i);
+            } else {
+                i++;
+            }
+        }
     }
 }
