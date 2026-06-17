@@ -142,7 +142,7 @@ public class Main {
             }
 
             else if (command.equals("jobs")) {
-                for (int i = 0; i < backgroundJobs.size(); i++) {
+                for (int i = 0; i < backgroundJobs.size();) {
                     Job job = backgroundJobs.get(i);
 
                     String marker = " ";
@@ -157,10 +157,20 @@ public class Main {
                             job.id,
                             marker,
                             job.command);
+                        i++;
+                    } else {
+                        String cmd = job.command;
+                        if (cmd.endsWith(" &")) {
+                            cmd = cmd.substring(0, cmd.length() - 2);
+                        }
+
+                        System.out.printf("[%d]%s  Done                 %s%n",
+                                job.id,
+                                marker,
+                                cmd);
+                        backgroundJobs.remove(i);
                     }
                 }
-
-                reapFinishedJobs();
             }
 
             else {
