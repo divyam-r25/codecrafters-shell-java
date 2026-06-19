@@ -45,18 +45,27 @@ public class Main {
                 tokens.remove(tokens.size() - 1);
             }
 
-            int pipeIndex = -1;
-            for (int i = 0; i < tokens.size(); i++) {
-                if (tokens.get(i).equals("|")) {
-                    pipeIndex = i;
+            boolean hasPipe = false;
+            for (String t : tokens) {
+                if (t.equals("|")) {
+                    hasPipe = true;
                     break;
                 }
             }
 
-            if (pipeIndex != -1) {
-                List<String> command1Tokens = new ArrayList<>(tokens.subList(0, pipeIndex));
-                List<String> command2Tokens = new ArrayList<>(tokens.subList(pipeIndex + 1, tokens.size()));
-                executePipeline(command1Tokens, command2Tokens, runInBackground);
+            if (hasPipe) {
+                List<List<String>> commands = new ArrayList<>();
+                List<String> current = new ArrayList<>();
+                for (String t : tokens) {
+                    if (t.equals("|")) {
+                        commands.add(current);
+                        current = new ArrayList<>();
+                    } else {
+                        current.add(t);
+                    }
+                }
+                commands.add(current);
+                executePipeline(commands, runInBackground);
                 continue;
             }
 
@@ -491,259 +500,275 @@ public class Main {
         }
     }
 
-    static void executePipeline(List<String> command1Tokens, List<String> command2Tokens, boolean runInBackground)
+    static void executePipeline(List<List<String>> commands, boolean runInBackground)
             throws Exception {
-        String cmd1 = command1Tokens.get(0);
-        String cmd2 = command2Tokens.get(0);
+        int n = commands.size();
+        List<String> lastCmdTokens = commands.get(n - 1);
 
-       
-        int redirectIndex2 = -1;
-        boolean appendStdout2 = false;
-        boolean appendStderr2 = false;
-        boolean redirectStderr2 = false;
+        // Parse redirection on the last command
+        int redirectIndexLast = -1;
+        boolean appendStdoutLast = false;
+        boolean appendStderrLast = false;
+        boolean redirectStderrLast = false;
 
-        for (int i = 0; i < command2Tokens.size(); i++) {
-            String t = command2Tokens.get(i);
+        for (int i = 0; i < lastCmdTokens.size(); i++) {
+            String t = lastCmdTokens.get(i);
             if (t.equals(">") || t.equals("1>")) {
-                redirectIndex2 = i;
+                redirectIndexLast = i;
                 break;
             } else if (t.equals(">>") || t.equals("1>>")) {
-                redirectIndex2 = i;
-                appendStdout2 = true;
+                redirectIndexLast = i;
+                appendStdoutLast = true;
                 break;
             } else if (t.equals("2>")) {
-                redirectIndex2 = i;
-                redirectStderr2 = true;
+                redirectIndexLast = i;
+                redirectStderrLast = true;
                 break;
             } else if (t.equals("2>>")) {
-                redirectIndex2 = i;
-                appendStderr2 = true;
+                redirectIndexLast = i;
+                appendStderrLast = true;
                 break;
             }
         }
 
-        List<String> actualCmd2Tokens;
-        File redirectFile2 = null;
+        List<String> actualLastTokens;
+        File redirectFileLast = null;
 
-        if (redirectIndex2 != -1) {
-            actualCmd2Tokens = new ArrayList<>(command2Tokens.subList(0, redirectIndex2));
-            redirectFile2 = new File(command2Tokens.get(redirectIndex2 + 1));
-            File parent = redirectFile2.getParentFile();
+        if (redirectIndexLast != -1) {
+            actualLastTokens = new ArrayList<>(lastCmdTokens.subList(0, redirectIndexLast));
+            redirectFileLast = new File(lastCmdTokens.get(redirectIndexLast + 1));
+            File parent = redirectFileLast.getParentFile();
             if (parent != null)
                 parent.mkdirs();
         } else {
-            actualCmd2Tokens = new ArrayList<>(command2Tokens);
+            actualLastTokens = new ArrayList<>(lastCmdTokens);
         }
 
-        cmd2 = actualCmd2Tokens.get(0);
+        // Replace last command tokens with the redirection-stripped version
+        commands.set(n - 1, actualLastTokens);
 
-       
-        boolean cmd1Builtin = isBuiltin(cmd1);
+        // Start all processes and connect pipes
+        List<Process> processes = new ArrayList<>();
+        List<Thread> pipeThreads = new ArrayList<>();
 
-        String exec1 = null;
-        boolean direct1 = false;
+        for (int i = 0; i < n; i++) {
+            List<String> cmdTokens = commands.get(i);
+            String cmd = cmdTokens.get(0);
 
-        if (!cmd1Builtin) {
-            if (isDirectExecutable(cmd1)) {
-                exec1 = cmd1;
-                direct1 = true;
-            } else {
-                exec1 = findExecutable(cmd1);
-            }
-            if (exec1 == null) {
-                System.out.println(cmd1 + ": command not found");
-                return;
-            }
-        }
+            if (isBuiltin(cmd)) {
+                // For builtins, we compute output and feed it into the next stage
+                byte[] builtinOutput = executeBuiltinToBytes(cmdTokens);
 
-        boolean cmd2Builtin = isBuiltin(cmd2);
-
-        String exec2 = null;
-        boolean direct2 = false;
-
-        if (!cmd2Builtin) {
-            if (isDirectExecutable(cmd2)) {
-                exec2 = cmd2;
-                direct2 = true;
-            } else {
-                exec2 = findExecutable(cmd2);
-            }
-            if (exec2 == null) {
-                System.out.println(cmd2 + ": command not found");
-                return;
-            }
-        }
-
-        List<String> args2 = null;
-        ProcessBuilder pb2 = null;
-        Process process2 = null;
-
-        if (!cmd2Builtin) {
-            args2 = new ArrayList<>(actualCmd2Tokens);
-            if (direct2)
-                args2.set(0, exec2);
-
-            pb2 = new ProcessBuilder(args2);
-            pb2.directory(new File(currentDirectory));
-
-            if (redirectFile2 != null) {
-                if (appendStdout2) {
-                    pb2.redirectOutput(ProcessBuilder.Redirect.appendTo(redirectFile2));
-                    pb2.redirectError(ProcessBuilder.Redirect.INHERIT);
-                } else if (appendStderr2) {
-                    pb2.redirectError(ProcessBuilder.Redirect.appendTo(redirectFile2));
-                    pb2.redirectOutput(ProcessBuilder.Redirect.INHERIT);
-                } else if (redirectStderr2) {
-                    pb2.redirectError(redirectFile2);
-                    pb2.redirectOutput(ProcessBuilder.Redirect.INHERIT);
-                } else {
-                    pb2.redirectOutput(redirectFile2);
-                    pb2.redirectError(ProcessBuilder.Redirect.INHERIT);
-                }
-            } else {
-                pb2.redirectError(ProcessBuilder.Redirect.INHERIT);
-            }
-
-            process2 = pb2.start();
-        }
-
-        if (cmd1Builtin) {
-            byte[] cmd1Output = executeBuiltinToBytes(command1Tokens);
-
-            if (cmd2Builtin) {
-                String builtinResult = executeBuiltinToString(actualCmd2Tokens);
-                if (redirectFile2 != null && !redirectStderr2 && !appendStderr2) {
-                    boolean append = appendStdout2;
-                    FileWriter fw = new FileWriter(redirectFile2, append);
-                    fw.write(builtinResult);
-                    fw.close();
-                } else {
-                    System.out.print(builtinResult);
-                    System.out.flush();
-                }
-            } else {
-                final Process p2 = process2;
-                Thread pipeInputThread = new Thread(() -> {
-                    try {
-                        OutputStream output = p2.getOutputStream();
-                        output.write(cmd1Output);
-                        output.flush();
-                        output.close();
-                    } catch (IOException e) {
+                if (i == n - 1) {
+                    // Last command is a builtin
+                    if (redirectFileLast != null && !redirectStderrLast && !appendStderrLast) {
+                        FileWriter fw = new FileWriter(redirectFileLast, appendStdoutLast);
+                        fw.write(new String(builtinOutput));
+                        fw.close();
+                    } else {
+                        System.out.write(builtinOutput);
+                        System.out.flush();
                     }
-                });
-                pipeInputThread.start();
+                } else {
+                    // Feed builtin output into the next process's stdin via a "source" process proxy
+                    // We create a fake PipedInputStream to carry the data forward
+                    // Start the next process and feed data
+                    i++;
+                    List<String> nextCmdTokens = commands.get(i);
+                    String nextCmd = nextCmdTokens.get(0);
 
-                Thread pipeOutputThread = null;
-                if (redirectFile2 == null || redirectStderr2 || appendStderr2) {
-                    pipeOutputThread = new Thread(() -> {
+                    // We need to handle chains: builtin | ext | ext | ...
+                    // Start all remaining processes
+                    Process nextProcess = startExternalProcess(nextCmdTokens, i == n - 1, redirectFileLast,
+                            appendStdoutLast, appendStderrLast, redirectStderrLast);
+                    if (nextProcess == null) {
+                        System.out.println(nextCmd + ": command not found");
+                        return;
+                    }
+                    processes.add(nextProcess);
+
+                    // Feed builtin output into next process
+                    final byte[] data = builtinOutput;
+                    final Process target = nextProcess;
+                    Thread feedThread = new Thread(() -> {
                         try {
-                            InputStream input = p2.getInputStream();
-                            byte[] buf = new byte[1024];
-                            int n;
-                            while ((n = input.read(buf)) != -1) {
-                                System.out.write(buf, 0, n);
-                                System.out.flush();
-                            }
+                            OutputStream os = target.getOutputStream();
+                            os.write(data);
+                            os.flush();
+                            os.close();
                         } catch (IOException e) {
                         }
                     });
-                    pipeOutputThread.start();
-                }
+                    feedThread.start();
+                    pipeThreads.add(feedThread);
 
-                if (runInBackground) {
-                    String jobCmd = String.join(" ", command1Tokens) + " | " + String.join(" ", command2Tokens) + " &";
-                    int jobId = getNextJobId();
-                    backgroundJobs.add(new Job(jobId, p2, jobCmd));
-                    System.out.printf("[%d] %d%n", jobId, p2.pid());
-                } else {
-                    p2.waitFor();
-                    pipeInputThread.join();
-                    if (pipeOutputThread != null)
-                        pipeOutputThread.join();
+                    // Now chain the remaining processes
+                    for (int j = i + 1; j < n; j++) {
+                        Process prev = processes.get(processes.size() - 1);
+                        List<String> jCmdTokens = commands.get(j);
+
+                        if (isBuiltin(jCmdTokens.get(0))) {
+                            // Drain prev output, run builtin, output result
+                            drainProcessOutput(prev);
+                            prev.waitFor();
+                            byte[] bOut = executeBuiltinToBytes(jCmdTokens);
+                            if (j == n - 1) {
+                                if (redirectFileLast != null && !redirectStderrLast && !appendStderrLast) {
+                                    FileWriter fw = new FileWriter(redirectFileLast, appendStdoutLast);
+                                    fw.write(new String(bOut));
+                                    fw.close();
+                                } else {
+                                    System.out.write(bOut);
+                                    System.out.flush();
+                                }
+                            }
+                            // Mark that we've handled up to j
+                            i = j;
+                            continue;
+                        }
+
+                        Process jProcess = startExternalProcess(jCmdTokens, j == n - 1, redirectFileLast,
+                                appendStdoutLast, appendStderrLast, redirectStderrLast);
+                        if (jProcess == null) {
+                            System.out.println(jCmdTokens.get(0) + ": command not found");
+                            // Kill all started processes
+                            for (Process p : processes) p.destroyForcibly();
+                            return;
+                        }
+                        processes.add(jProcess);
+
+                        Thread pt = createPipeThread(prev, jProcess);
+                        pt.start();
+                        pipeThreads.add(pt);
+                        i = j;
+                    }
+                    break;
+                }
+            } else {
+                // External command
+                Process proc = startExternalProcess(cmdTokens, i == n - 1, redirectFileLast,
+                        appendStdoutLast, appendStderrLast, redirectStderrLast);
+                if (proc == null) {
+                    System.out.println(cmd + ": command not found");
+                    for (Process p : processes) p.destroyForcibly();
+                    return;
+                }
+                processes.add(proc);
+
+                // Connect pipe from previous process
+                if (processes.size() >= 2) {
+                    Process prev = processes.get(processes.size() - 2);
+                    Thread pt = createPipeThread(prev, proc);
+                    pt.start();
+                    pipeThreads.add(pt);
                 }
             }
+        }
+
+        if (processes.isEmpty()) return;
+
+        Process lastProcess = processes.get(processes.size() - 1);
+
+        // Read the last process's stdout if not redirected
+        Thread outputThread = null;
+        if (redirectFileLast == null || redirectStderrLast || appendStderrLast) {
+            outputThread = new Thread(() -> {
+                try {
+                    InputStream input = lastProcess.getInputStream();
+                    byte[] buf = new byte[1024];
+                    int bytesRead;
+                    while ((bytesRead = input.read(buf)) != -1) {
+                        System.out.write(buf, 0, bytesRead);
+                        System.out.flush();
+                    }
+                } catch (IOException e) {
+                }
+            });
+            outputThread.start();
+        }
+
+        if (runInBackground) {
+            StringBuilder jobCmd = new StringBuilder();
+            for (int i = 0; i < commands.size(); i++) {
+                if (i > 0) jobCmd.append(" | ");
+                jobCmd.append(String.join(" ", commands.get(i)));
+            }
+            jobCmd.append(" &");
+            int jobId = getNextJobId();
+            backgroundJobs.add(new Job(jobId, lastProcess, jobCmd.toString()));
+            System.out.printf("[%d] %d%n", jobId, lastProcess.pid());
         } else {
-            List<String> args1 = new ArrayList<>(command1Tokens);
-            if (direct1)
-                args1.set(0, exec1);
+            lastProcess.waitFor();
+            for (Process p : processes) p.waitFor();
+            for (Thread t : pipeThreads) t.join();
+            if (outputThread != null) outputThread.join();
+        }
+    }
 
-            ProcessBuilder pb1 = new ProcessBuilder(args1);
-            pb1.directory(new File(currentDirectory));
-            pb1.redirectError(ProcessBuilder.Redirect.INHERIT);
+    static Process startExternalProcess(List<String> cmdTokens, boolean isLast, File redirectFile,
+            boolean appendStdout, boolean appendStderr, boolean redirectStderr) throws Exception {
+        String cmd = cmdTokens.get(0);
+        String execPath;
 
-            Process process1 = pb1.start();
+        if (isDirectExecutable(cmd)) {
+            execPath = cmd;
+        } else {
+            execPath = findExecutable(cmd);
+        }
 
-            if (cmd2Builtin) {
-                ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                InputStream is1 = process1.getInputStream();
+        if (execPath == null) return null;
+
+        List<String> args = new ArrayList<>(cmdTokens);
+        if (isDirectExecutable(cmd)) {
+            args.set(0, execPath);
+        }
+
+        ProcessBuilder pb = new ProcessBuilder(args);
+        pb.directory(new File(currentDirectory));
+        pb.redirectError(ProcessBuilder.Redirect.INHERIT);
+
+        if (isLast && redirectFile != null) {
+            if (appendStdout) {
+                pb.redirectOutput(ProcessBuilder.Redirect.appendTo(redirectFile));
+                pb.redirectError(ProcessBuilder.Redirect.INHERIT);
+            } else if (appendStderr) {
+                pb.redirectError(ProcessBuilder.Redirect.appendTo(redirectFile));
+                pb.redirectOutput(ProcessBuilder.Redirect.INHERIT);
+            } else if (redirectStderr) {
+                pb.redirectError(redirectFile);
+                pb.redirectOutput(ProcessBuilder.Redirect.INHERIT);
+            } else {
+                pb.redirectOutput(redirectFile);
+                pb.redirectError(ProcessBuilder.Redirect.INHERIT);
+            }
+        }
+
+        return pb.start();
+    }
+
+    static Thread createPipeThread(Process src, Process dst) {
+        return new Thread(() -> {
+            try {
+                InputStream input = src.getInputStream();
+                OutputStream output = dst.getOutputStream();
                 byte[] buffer = new byte[1024];
                 int bytesRead;
-                while ((bytesRead = is1.read(buffer)) != -1) {
-                    baos.write(buffer, 0, bytesRead);
+                while ((bytesRead = input.read(buffer)) != -1) {
+                    output.write(buffer, 0, bytesRead);
+                    output.flush();
                 }
-                process1.waitFor();
-
-                String builtinResult = executeBuiltinToString(actualCmd2Tokens);
-                if (redirectFile2 != null && !redirectStderr2 && !appendStderr2) {
-                    boolean append = appendStdout2;
-                    FileWriter fw = new FileWriter(redirectFile2, append);
-                    fw.write(builtinResult);
-                    fw.close();
-                } else {
-                    System.out.print(builtinResult);
-                    System.out.flush();
-                }
-            } else {
-                final Process p1 = process1;
-                final Process p2 = process2;
-
-                Thread pipeInputThread = new Thread(() -> {
-                    try {
-                        InputStream input = p1.getInputStream();
-                        OutputStream output = p2.getOutputStream();
-                        byte[] buffer = new byte[1024];
-                        int bytesRead;
-                        while ((bytesRead = input.read(buffer)) != -1) {
-                            output.write(buffer, 0, bytesRead);
-                            output.flush();
-                        }
-                        output.close();
-                    } catch (IOException e) {
-                    }
-                });
-                pipeInputThread.start();
-
-                Thread pipeOutputThread = null;
-                if (redirectFile2 == null || redirectStderr2 || appendStderr2) {
-                    pipeOutputThread = new Thread(() -> {
-                        try {
-                            InputStream input = p2.getInputStream();
-                            byte[] buf = new byte[1024];
-                            int n;
-                            while ((n = input.read(buf)) != -1) {
-                                System.out.write(buf, 0, n);
-                                System.out.flush();
-                            }
-                        } catch (IOException e) {
-                        }
-                    });
-                    pipeOutputThread.start();
-                }
-
-                if (runInBackground) {
-                    String jobCmd = String.join(" ", command1Tokens) + " | " + String.join(" ", command2Tokens) + " &";
-                    int jobId = getNextJobId();
-                    backgroundJobs.add(new Job(jobId, p2, jobCmd));
-                    System.out.printf("[%d] %d%n", jobId, p2.pid());
-                } else {
-                    p2.waitFor();
-                    p1.waitFor();
-                    pipeInputThread.join();
-                    if (pipeOutputThread != null)
-                        pipeOutputThread.join();
-                }
+                output.close();
+            } catch (IOException e) {
             }
+        });
+    }
+
+    static void drainProcessOutput(Process p) {
+        try {
+            InputStream is = p.getInputStream();
+            byte[] buf = new byte[1024];
+            while (is.read(buf) != -1) {}
+        } catch (IOException e) {
         }
     }
 
