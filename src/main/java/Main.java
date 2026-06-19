@@ -571,49 +571,16 @@ public class Main {
             }
         }
 
-        byte[] cmd1Output;
+        List<String> args2 = null;
+        ProcessBuilder pb2 = null;
+        Process process2 = null;
 
-        if (cmd1Builtin) {
-            cmd1Output = executeBuiltinToBytes(command1Tokens);
-        } else {
-            List<String> args1 = new ArrayList<>(command1Tokens);
-            if (direct1)
-                args1.set(0, exec1);
-
-            ProcessBuilder pb1 = new ProcessBuilder(args1);
-            pb1.directory(new File(currentDirectory));
-            pb1.redirectError(ProcessBuilder.Redirect.INHERIT);
-
-            Process process1 = pb1.start();
-
-            ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            InputStream is1 = process1.getInputStream();
-            byte[] buffer = new byte[1024];
-            int bytesRead;
-            while ((bytesRead = is1.read(buffer)) != -1) {
-                baos.write(buffer, 0, bytesRead);
-            }
-            process1.waitFor();
-            cmd1Output = baos.toByteArray();
-        }
-
-        if (cmd2Builtin) {
-            String builtinResult = executeBuiltinToString(actualCmd2Tokens);
-            if (redirectFile2 != null && !redirectStderr2 && !appendStderr2) {
-                boolean append = appendStdout2;
-                FileWriter fw = new FileWriter(redirectFile2, append);
-                fw.write(builtinResult);
-                fw.close();
-            } else {
-                System.out.print(builtinResult);
-                System.out.flush();
-            }
-        } else {
-            List<String> args2 = new ArrayList<>(actualCmd2Tokens);
+        if (!cmd2Builtin) {
+            args2 = new ArrayList<>(actualCmd2Tokens);
             if (direct2)
                 args2.set(0, exec2);
 
-            ProcessBuilder pb2 = new ProcessBuilder(args2);
+            pb2 = new ProcessBuilder(args2);
             pb2.directory(new File(currentDirectory));
 
             if (redirectFile2 != null) {
@@ -634,49 +601,145 @@ public class Main {
                 pb2.redirectError(ProcessBuilder.Redirect.INHERIT);
             }
 
-            Process process2 = pb2.start();
+            process2 = pb2.start();
+        }
 
-            Thread pipeInputThread = new Thread(() -> {
-                try {
-                    OutputStream output = process2.getOutputStream();
-                    output.write(cmd1Output);
-                    output.flush();
-                    output.close();
-                } catch (IOException e) {
+        if (cmd1Builtin) {
+            byte[] cmd1Output = executeBuiltinToBytes(command1Tokens);
+
+            if (cmd2Builtin) {
+                String builtinResult = executeBuiltinToString(actualCmd2Tokens);
+                if (redirectFile2 != null && !redirectStderr2 && !appendStderr2) {
+                    boolean append = appendStdout2;
+                    FileWriter fw = new FileWriter(redirectFile2, append);
+                    fw.write(builtinResult);
+                    fw.close();
+                } else {
+                    System.out.print(builtinResult);
+                    System.out.flush();
                 }
-            });
-            pipeInputThread.start();
-
-            Thread pipeOutputThread = null;
-            if (redirectFile2 == null || redirectStderr2 || appendStderr2) {
-                pipeOutputThread = new Thread(() -> {
+            } else {
+                final Process p2 = process2;
+                Thread pipeInputThread = new Thread(() -> {
                     try {
-                        InputStream input = process2.getInputStream();
-                        byte[] buf = new byte[1024];
-                        int n;
-                        while ((n = input.read(buf)) != -1) {
-                            System.out.write(buf, 0, n);
-                            System.out.flush();
-                        }
+                        OutputStream output = p2.getOutputStream();
+                        output.write(cmd1Output);
+                        output.flush();
+                        output.close();
                     } catch (IOException e) {
-                        
                     }
                 });
-                pipeOutputThread.start();
-            }
+                pipeInputThread.start();
 
-            if (runInBackground) {
-                String jobCmd = String.join(" ", command1Tokens) + " | " + String.join(" ", command2Tokens) + " &";
-                int jobId = getNextJobId();
-                backgroundJobs.add(new Job(jobId, process2, jobCmd));
-                System.out.printf("[%d] %d%n",
-                        jobId,
-                        process2.pid());
+                Thread pipeOutputThread = null;
+                if (redirectFile2 == null || redirectStderr2 || appendStderr2) {
+                    pipeOutputThread = new Thread(() -> {
+                        try {
+                            InputStream input = p2.getInputStream();
+                            byte[] buf = new byte[1024];
+                            int n;
+                            while ((n = input.read(buf)) != -1) {
+                                System.out.write(buf, 0, n);
+                                System.out.flush();
+                            }
+                        } catch (IOException e) {
+                        }
+                    });
+                    pipeOutputThread.start();
+                }
+
+                if (runInBackground) {
+                    String jobCmd = String.join(" ", command1Tokens) + " | " + String.join(" ", command2Tokens) + " &";
+                    int jobId = getNextJobId();
+                    backgroundJobs.add(new Job(jobId, p2, jobCmd));
+                    System.out.printf("[%d] %d%n", jobId, p2.pid());
+                } else {
+                    p2.waitFor();
+                    pipeInputThread.join();
+                    if (pipeOutputThread != null)
+                        pipeOutputThread.join();
+                }
+            }
+        } else {
+            List<String> args1 = new ArrayList<>(command1Tokens);
+            if (direct1)
+                args1.set(0, exec1);
+
+            ProcessBuilder pb1 = new ProcessBuilder(args1);
+            pb1.directory(new File(currentDirectory));
+            pb1.redirectError(ProcessBuilder.Redirect.INHERIT);
+
+            Process process1 = pb1.start();
+
+            if (cmd2Builtin) {
+                ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                InputStream is1 = process1.getInputStream();
+                byte[] buffer = new byte[1024];
+                int bytesRead;
+                while ((bytesRead = is1.read(buffer)) != -1) {
+                    baos.write(buffer, 0, bytesRead);
+                }
+                process1.waitFor();
+
+                String builtinResult = executeBuiltinToString(actualCmd2Tokens);
+                if (redirectFile2 != null && !redirectStderr2 && !appendStderr2) {
+                    boolean append = appendStdout2;
+                    FileWriter fw = new FileWriter(redirectFile2, append);
+                    fw.write(builtinResult);
+                    fw.close();
+                } else {
+                    System.out.print(builtinResult);
+                    System.out.flush();
+                }
             } else {
-                process2.waitFor();
-                pipeInputThread.join();
-                if (pipeOutputThread != null)
-                    pipeOutputThread.join();
+                final Process p1 = process1;
+                final Process p2 = process2;
+
+                Thread pipeInputThread = new Thread(() -> {
+                    try {
+                        InputStream input = p1.getInputStream();
+                        OutputStream output = p2.getOutputStream();
+                        byte[] buffer = new byte[1024];
+                        int bytesRead;
+                        while ((bytesRead = input.read(buffer)) != -1) {
+                            output.write(buffer, 0, bytesRead);
+                            output.flush();
+                        }
+                        output.close();
+                    } catch (IOException e) {
+                    }
+                });
+                pipeInputThread.start();
+
+                Thread pipeOutputThread = null;
+                if (redirectFile2 == null || redirectStderr2 || appendStderr2) {
+                    pipeOutputThread = new Thread(() -> {
+                        try {
+                            InputStream input = p2.getInputStream();
+                            byte[] buf = new byte[1024];
+                            int n;
+                            while ((n = input.read(buf)) != -1) {
+                                System.out.write(buf, 0, n);
+                                System.out.flush();
+                            }
+                        } catch (IOException e) {
+                        }
+                    });
+                    pipeOutputThread.start();
+                }
+
+                if (runInBackground) {
+                    String jobCmd = String.join(" ", command1Tokens) + " | " + String.join(" ", command2Tokens) + " &";
+                    int jobId = getNextJobId();
+                    backgroundJobs.add(new Job(jobId, p2, jobCmd));
+                    System.out.printf("[%d] %d%n", jobId, p2.pid());
+                } else {
+                    p2.waitFor();
+                    p1.waitFor();
+                    pipeInputThread.join();
+                    if (pipeOutputThread != null)
+                        pipeOutputThread.join();
+                }
             }
         }
     }
