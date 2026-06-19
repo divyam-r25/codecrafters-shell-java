@@ -25,6 +25,9 @@ public class Main {
         Scanner sc = new Scanner(System.in);
 
         while (true) {
+            if (!backgroundJobs.isEmpty()) {
+                Thread.sleep(50);
+            }
             reapFinishedJobs();
 
             System.out.print("$ ");
