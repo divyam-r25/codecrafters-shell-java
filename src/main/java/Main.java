@@ -59,6 +59,10 @@ public class Main {
 
             String command = tokens.get(0);
 
+            if (tokens.contains("|")) {
+                executePipeline(tokens, runInBackground);
+                continue;
+            }
             if (command.equals("exit")) {
                 break;
             }
@@ -170,9 +174,9 @@ public class Main {
 
                     if (job.process.isAlive()) {
                         System.out.printf("[%d]%s  Running                 %s%n",
-                            job.id,
-                            marker,
-                            job.command);
+                                job.id,
+                                marker,
+                                job.command);
                         i++;
                     } else {
                         String cmd = job.command;
@@ -338,6 +342,14 @@ public class Main {
             }
 
             if (!inSingle && !inDouble) {
+                if (c == '|') {
+                    if (current.length() > 0) {
+                        tokens.add(current.toString());
+                        current.setLength(0);
+                    }
+                    tokens.add("|");
+                    continue;
+                }
                 if (current.length() == 0) {
                     if (c == '>') {
                         if (i + 1 < input.length() && input.charAt(i + 1) == '>') {
@@ -392,7 +404,7 @@ public class Main {
         }
 
         if (isWindows() && !cmd.contains(".")) {
-            for (String extension : new String[] {".exe", ".cmd", ".bat"}) {
+            for (String extension : new String[] { ".exe", ".cmd", ".bat" }) {
                 File withExtension = new File(cmd + extension);
                 if (withExtension.exists() && withExtension.canExecute()) {
                     return true;
@@ -410,7 +422,7 @@ public class Main {
         }
 
         String[] directories = path.split(java.io.File.pathSeparator);
-        String[] extensions = isWindows() ? new String[] {"", ".exe", ".cmd", ".bat"} : new String[] {""};
+        String[] extensions = isWindows() ? new String[] { "", ".exe", ".cmd", ".bat" } : new String[] { "" };
 
         for (String dir : directories) {
             for (String extension : extensions) {
@@ -481,7 +493,8 @@ public class Main {
         }
     }
 
-    static void executePipeline(List<String> command1Tokens, List<String> command2Tokens, boolean runInBackground) throws Exception {
+    static void executePipeline(List<String> command1Tokens, List<String> command2Tokens, boolean runInBackground)
+            throws Exception {
         String cmd1 = command1Tokens.get(0);
         String cmd2 = command2Tokens.get(0);
 
