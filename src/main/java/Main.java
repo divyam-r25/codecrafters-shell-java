@@ -26,7 +26,7 @@ public class Main {
 
         while (true) {
             if (!backgroundJobs.isEmpty()) {
-                Thread.sleep(50);
+                Thread.sleep(100);
             }
             reapFinishedJobs();
 
