@@ -560,6 +560,14 @@ public class Main {
                 byte[] builtinOutput = executeBuiltinToBytes(cmdTokens);
 
                 if (i == n - 1) {
+                    // Last command is a builtin — drain previous process output first
+                    if (!processes.isEmpty()) {
+                        Process prev = processes.get(processes.size() - 1);
+                        drainProcessOutput(prev);
+                        prev.waitFor();
+                        for (Process p : processes) p.waitFor();
+                        for (Thread t : pipeThreads) t.join();
+                    }
                     // Last command is a builtin
                     if (redirectFileLast != null && !redirectStderrLast && !appendStderrLast) {
                         FileWriter fw = new FileWriter(redirectFileLast, appendStdoutLast);
@@ -569,6 +577,7 @@ public class Main {
                         System.out.write(builtinOutput);
                         System.out.flush();
                     }
+                    return;
                 } else {
                     // Feed builtin output into the next process's stdin via a "source" process proxy
                     // We create a fake PipedInputStream to carry the data forward
