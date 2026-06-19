@@ -58,11 +58,6 @@ public class Main {
             }
 
             String command = tokens.get(0);
-
-            if (tokens.contains("|")) {
-                executePipeline(tokens, runInBackground);
-                continue;
-            }
             if (command.equals("exit")) {
                 break;
             }
@@ -498,98 +493,229 @@ public class Main {
         String cmd1 = command1Tokens.get(0);
         String cmd2 = command2Tokens.get(0);
 
+       
+        int redirectIndex2 = -1;
+        boolean appendStdout2 = false;
+        boolean appendStderr2 = false;
+        boolean redirectStderr2 = false;
+
+        for (int i = 0; i < command2Tokens.size(); i++) {
+            String t = command2Tokens.get(i);
+            if (t.equals(">") || t.equals("1>")) {
+                redirectIndex2 = i;
+                break;
+            } else if (t.equals(">>") || t.equals("1>>")) {
+                redirectIndex2 = i;
+                appendStdout2 = true;
+                break;
+            } else if (t.equals("2>")) {
+                redirectIndex2 = i;
+                redirectStderr2 = true;
+                break;
+            } else if (t.equals("2>>")) {
+                redirectIndex2 = i;
+                appendStderr2 = true;
+                break;
+            }
+        }
+
+        List<String> actualCmd2Tokens;
+        File redirectFile2 = null;
+
+        if (redirectIndex2 != -1) {
+            actualCmd2Tokens = new ArrayList<>(command2Tokens.subList(0, redirectIndex2));
+            redirectFile2 = new File(command2Tokens.get(redirectIndex2 + 1));
+            File parent = redirectFile2.getParentFile();
+            if (parent != null)
+                parent.mkdirs();
+        } else {
+            actualCmd2Tokens = new ArrayList<>(command2Tokens);
+        }
+
+        cmd2 = actualCmd2Tokens.get(0);
+
+       
+        boolean cmd1Builtin = isBuiltin(cmd1);
+
         String exec1 = null;
         boolean direct1 = false;
 
-        if (isDirectExecutable(cmd1)) {
-            exec1 = cmd1;
-            direct1 = true;
-        } else {
-            exec1 = findExecutable(cmd1);
+        if (!cmd1Builtin) {
+            if (isDirectExecutable(cmd1)) {
+                exec1 = cmd1;
+                direct1 = true;
+            } else {
+                exec1 = findExecutable(cmd1);
+            }
+            if (exec1 == null) {
+                System.out.println(cmd1 + ": command not found");
+                return;
+            }
         }
+
+        boolean cmd2Builtin = isBuiltin(cmd2);
 
         String exec2 = null;
         boolean direct2 = false;
 
-        if (isDirectExecutable(cmd2)) {
-            exec2 = cmd2;
-            direct2 = true;
-        } else {
-            exec2 = findExecutable(cmd2);
-        }
-
-        if (exec1 == null || exec2 == null) {
-            if (exec1 == null) {
-                System.out.println(cmd1 + ": command not found");
+        if (!cmd2Builtin) {
+            if (isDirectExecutable(cmd2)) {
+                exec2 = cmd2;
+                direct2 = true;
+            } else {
+                exec2 = findExecutable(cmd2);
             }
             if (exec2 == null) {
                 System.out.println(cmd2 + ": command not found");
+                return;
             }
-            return;
         }
 
-        List<String> args1 = new ArrayList<>(command1Tokens);
-        if (direct1)
-            args1.set(0, exec1);
+        byte[] cmd1Output;
 
-        List<String> args2 = new ArrayList<>(command2Tokens);
-        if (direct2)
-            args2.set(0, exec2);
-
-        ProcessBuilder pb1 = new ProcessBuilder(args1);
-        pb1.directory(new File(currentDirectory));
-        pb1.redirectError(ProcessBuilder.Redirect.INHERIT);
-
-        ProcessBuilder pb2 = new ProcessBuilder(args2);
-        pb2.directory(new File(currentDirectory));
-        pb2.redirectError(ProcessBuilder.Redirect.INHERIT);
-
-        Process process1 = pb1.start();
-        Process process2 = pb2.start();
-
-        Thread pipeInputThread = new Thread(() -> {
-            try {
-                InputStream input = process1.getInputStream();
-                OutputStream output = process2.getOutputStream();
-                byte[] buffer = new byte[1024];
-                int bytesRead;
-                while ((bytesRead = input.read(buffer)) != -1) {
-                    output.write(buffer, 0, bytesRead);
-                }
-                output.close();
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        });
-        pipeInputThread.start();
-
-        Thread pipeOutputThread = new Thread(() -> {
-            try {
-                InputStream input = process2.getInputStream();
-                byte[] buffer = new byte[1024];
-                int bytesRead;
-                while ((bytesRead = input.read(buffer)) != -1) {
-                    System.out.write(buffer, 0, bytesRead);
-                    System.out.flush();
-                }
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        });
-        pipeOutputThread.start();
-
-        if (runInBackground) {
-            String jobCmd = String.join(" ", command1Tokens) + " | " + String.join(" ", command2Tokens) + " &";
-            int jobId = getNextJobId();
-            backgroundJobs.add(new Job(jobId, process2, jobCmd));
-            System.out.printf("[%d] %d%n",
-                    jobId,
-                    process2.pid());
+        if (cmd1Builtin) {
+            cmd1Output = executeBuiltinToBytes(command1Tokens);
         } else {
+            List<String> args1 = new ArrayList<>(command1Tokens);
+            if (direct1)
+                args1.set(0, exec1);
+
+            ProcessBuilder pb1 = new ProcessBuilder(args1);
+            pb1.directory(new File(currentDirectory));
+            pb1.redirectError(ProcessBuilder.Redirect.INHERIT);
+
+            Process process1 = pb1.start();
+
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            InputStream is1 = process1.getInputStream();
+            byte[] buffer = new byte[1024];
+            int bytesRead;
+            while ((bytesRead = is1.read(buffer)) != -1) {
+                baos.write(buffer, 0, bytesRead);
+            }
             process1.waitFor();
-            process2.waitFor();
-            pipeInputThread.join();
-            pipeOutputThread.join();
+            cmd1Output = baos.toByteArray();
         }
+
+        if (cmd2Builtin) {
+            String builtinResult = executeBuiltinToString(actualCmd2Tokens);
+            if (redirectFile2 != null && !redirectStderr2 && !appendStderr2) {
+                boolean append = appendStdout2;
+                FileWriter fw = new FileWriter(redirectFile2, append);
+                fw.write(builtinResult);
+                fw.close();
+            } else {
+                System.out.print(builtinResult);
+                System.out.flush();
+            }
+        } else {
+            List<String> args2 = new ArrayList<>(actualCmd2Tokens);
+            if (direct2)
+                args2.set(0, exec2);
+
+            ProcessBuilder pb2 = new ProcessBuilder(args2);
+            pb2.directory(new File(currentDirectory));
+
+            if (redirectFile2 != null) {
+                if (appendStdout2) {
+                    pb2.redirectOutput(ProcessBuilder.Redirect.appendTo(redirectFile2));
+                    pb2.redirectError(ProcessBuilder.Redirect.INHERIT);
+                } else if (appendStderr2) {
+                    pb2.redirectError(ProcessBuilder.Redirect.appendTo(redirectFile2));
+                    pb2.redirectOutput(ProcessBuilder.Redirect.INHERIT);
+                } else if (redirectStderr2) {
+                    pb2.redirectError(redirectFile2);
+                    pb2.redirectOutput(ProcessBuilder.Redirect.INHERIT);
+                } else {
+                    pb2.redirectOutput(redirectFile2);
+                    pb2.redirectError(ProcessBuilder.Redirect.INHERIT);
+                }
+            } else {
+                pb2.redirectError(ProcessBuilder.Redirect.INHERIT);
+            }
+
+            Process process2 = pb2.start();
+
+            Thread pipeInputThread = new Thread(() -> {
+                try {
+                    OutputStream output = process2.getOutputStream();
+                    output.write(cmd1Output);
+                    output.flush();
+                    output.close();
+                } catch (IOException e) {
+                }
+            });
+            pipeInputThread.start();
+
+            Thread pipeOutputThread = null;
+            if (redirectFile2 == null || redirectStderr2 || appendStderr2) {
+                pipeOutputThread = new Thread(() -> {
+                    try {
+                        InputStream input = process2.getInputStream();
+                        byte[] buf = new byte[1024];
+                        int n;
+                        while ((n = input.read(buf)) != -1) {
+                            System.out.write(buf, 0, n);
+                            System.out.flush();
+                        }
+                    } catch (IOException e) {
+                        
+                    }
+                });
+                pipeOutputThread.start();
+            }
+
+            if (runInBackground) {
+                String jobCmd = String.join(" ", command1Tokens) + " | " + String.join(" ", command2Tokens) + " &";
+                int jobId = getNextJobId();
+                backgroundJobs.add(new Job(jobId, process2, jobCmd));
+                System.out.printf("[%d] %d%n",
+                        jobId,
+                        process2.pid());
+            } else {
+                process2.waitFor();
+                pipeInputThread.join();
+                if (pipeOutputThread != null)
+                    pipeOutputThread.join();
+            }
+        }
+    }
+
+    static boolean isBuiltin(String cmd) {
+        return cmd.equals("echo") || cmd.equals("pwd") || cmd.equals("cd")
+                || cmd.equals("type") || cmd.equals("exit") || cmd.equals("jobs");
+    }
+
+    static byte[] executeBuiltinToBytes(List<String> tokens) {
+        String result = executeBuiltinToString(tokens);
+        return result.getBytes();
+    }
+
+    static String executeBuiltinToString(List<String> tokens) {
+        String cmd = tokens.get(0);
+        if (cmd.equals("echo")) {
+            if (tokens.size() > 1) {
+                return String.join(" ", tokens.subList(1, tokens.size())) + System.lineSeparator();
+            }
+            return System.lineSeparator();
+        } else if (cmd.equals("pwd")) {
+            return currentDirectory + System.lineSeparator();
+        } else if (cmd.equals("type")) {
+            if (tokens.size() > 1) {
+                String target = tokens.get(1);
+                if (isBuiltin(target)) {
+                    return target + " is a shell builtin" + System.lineSeparator();
+                } else {
+                    String execPath = findExecutable(target);
+                    if (execPath != null) {
+                        return target + " is " + execPath + System.lineSeparator();
+                    } else {
+                        return target + ": not found" + System.lineSeparator();
+                    }
+                }
+            }
+            return "";
+        }
+        return "";
     }
 }
